@@ -5,7 +5,6 @@ class Matrix
 {
 public:
 
-
 private:
     T data[M][N] = {};
 };
