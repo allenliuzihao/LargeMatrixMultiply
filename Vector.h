@@ -93,6 +93,32 @@ public:
     {
         float result = 0.0f;
 
+        const SparseVector<T, N>* otherSparse = dynamic_cast<const SparseVector<T, N>*>(&other);
+        if (otherSparse)
+        {
+            // Both vectors are sparse, use two-pointer technique
+            size_t i = 0, j = 0;
+            while (i < m_indices.size() && j < otherSparse->m_indices.size())
+            {
+                if (m_indices[i] == otherSparse->m_indices[j])
+                {
+                    result += m_data[i] * otherSparse->m_data[j];
+                    ++i;
+                    ++j;
+                }
+                else if (m_indices[i] < otherSparse->m_indices[j])
+                {
+                    ++i;
+                }
+                else
+                {
+                    ++j;
+                }
+            }
+            return result;
+        } 
+
+        // One vector is sparse and the other is not, iterate over non-zero elements of the sparse vector
         uint32_t i = 0;
         for (size_t index : m_indices)
         {

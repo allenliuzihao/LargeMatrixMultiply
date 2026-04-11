@@ -266,5 +266,80 @@ namespace VectorTests
 			Assert::IsTrue(speedup > 1.0,
 				L"SparseVector · ScalarVector should be faster for sparse data");
 		}
+
+		TEST_METHOD(TestPerformance_SameTypeVectors)
+		{
+			// Compare: SparseVector · SparseVector vs ScalarVector · ScalarVector
+			// This shows the performance of each data structure when operating on itself
+			constexpr size_t VECTOR_SIZE = 10000;
+			constexpr size_t SPARSITY = 100;  // 1% non-zero elements
+
+			// Create sparse data
+			std::map<size_t, float> sparseData;
+			std::array<float, VECTOR_SIZE> scalarData;
+			scalarData.fill(0.0f);
+
+			// Populate with 1% non-zero values at same positions
+			for (size_t i = 0; i < VECTOR_SIZE; i += SPARSITY)
+			{
+				float val = static_cast<float>(i % 10 + 1);
+				sparseData[i] = val;
+				scalarData[i] = val;
+			}
+
+			// Create vectors
+			auto sparseVec1 = std::make_unique<SparseVector<float, VECTOR_SIZE>>(sparseData);
+			auto sparseVec2 = std::make_unique<SparseVector<float, VECTOR_SIZE>>(sparseData);
+			auto scalarVec1 = std::make_unique<ScalarVector<float, VECTOR_SIZE>>(scalarData);
+			auto scalarVec2 = std::make_unique<ScalarVector<float, VECTOR_SIZE>>(scalarData);
+
+			// Benchmark: SparseVector · SparseVector
+			auto startSparseSparse = std::chrono::high_resolution_clock::now();
+			float sparseResult = sparseVec1->Dot(*sparseVec2);
+			for (int i = 0; i < 999; ++i)
+			{
+				sparseResult = sparseVec1->Dot(*sparseVec2);
+			}
+			auto endSparseSparse = std::chrono::high_resolution_clock::now();
+			auto sparseSparseDuration = std::chrono::duration_cast<std::chrono::milliseconds>(
+				endSparseSparse - startSparseSparse);
+
+			// Benchmark: ScalarVector · ScalarVector
+			auto startScalarScalar = std::chrono::high_resolution_clock::now();
+			float scalarResult = scalarVec1->Dot(*scalarVec2);
+			for (int i = 0; i < 999; ++i)
+			{
+				scalarResult = scalarVec1->Dot(*scalarVec2);
+			}
+			auto endScalarScalar = std::chrono::high_resolution_clock::now();
+			auto scalarScalarDuration = std::chrono::duration_cast<std::chrono::milliseconds>(
+				endScalarScalar - startScalarScalar);
+
+			// Results should be equal
+			Assert::AreEqual(scalarResult, sparseResult, 0.01f,
+				L"Sparse·Sparse and Scalar·Scalar should produce same result");
+
+			// Calculate speedup (which is faster?)
+			double speedup = static_cast<double>(scalarScalarDuration.count()) /
+				static_cast<double>(sparseSparseDuration.count());
+
+			// Log detailed performance metrics
+			std::wstring message =
+				L"Test: SparseVector·SparseVector vs ScalarVector·ScalarVector\n" +
+				std::wstring(L"Vector Size: ") + std::to_wstring(VECTOR_SIZE) +
+				L", Non-zero Elements: " + std::to_wstring(VECTOR_SIZE / SPARSITY) + L" (1%)\n" +
+				L"\nPerformance Results (1000 iterations):\n" +
+				L"SparseVector · SparseVector: " + std::to_wstring(sparseSparseDuration.count()) + L" ms\n" +
+				L"ScalarVector · ScalarVector:  " + std::to_wstring(scalarScalarDuration.count()) + L" ms\n" +
+				L"\nSpeedup: " + std::to_wstring(speedup) + L"x\n" +
+				(speedup > 1.0 ? L"Winner: SparseVector" : L"Winner: ScalarVector") + L"\n" +
+				L"Result: " + std::to_wstring(sparseResult);
+
+			Logger::WriteMessage(message.c_str());
+
+			// Sparse should be faster for sparse data
+			Assert::IsTrue(speedup > 1.0,
+				L"SparseVector · SparseVector should be faster for sparse data (1% non-zero)");
+		}
 	};
 }
