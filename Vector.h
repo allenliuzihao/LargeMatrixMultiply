@@ -31,6 +31,16 @@ template <FloatOrInt T, size_t N>
 class ScalarVector : public Vector<T, N>
 {
 public:
+    // Default constructor
+    ScalarVector() : Vector<T, N>()
+    {
+    }
+
+    // Constructor accepting array data
+    explicit ScalarVector(const std::array<T, N>& data) : Vector<T, N>(data)
+    {
+    }
+
     float Dot(const Vector<T, N>& other) const override
     {
         float result = 0.0f;
