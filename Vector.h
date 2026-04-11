@@ -4,7 +4,7 @@ template <FloatOrInt T, size_t N>
 class Vector
 {
 public:
-    using element_type = T;  // ✅ ADD THIS
+    using element_type = T;  
 
     template<size_t NewSize>
     using Rebind = void;   // or delete it entirely
