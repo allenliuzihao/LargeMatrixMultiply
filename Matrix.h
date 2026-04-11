@@ -10,9 +10,9 @@ public:
     using ElementType = typename VectorType::element_type;  // Extract T from VectorType
     using ResultVectorType = typename VectorType::template Rebind<M>;
 
-    VectorType operator*(const VectorType& vec) const
+    ResultVectorType operator*(const VectorType& vec) const
     {
-        VectorType result;
+        ResultVectorType result;
         for (size_t i = 0; i < M; ++i)
         {
             result[i] = m_data[i].Dot(vec);
@@ -37,9 +37,9 @@ public:
         this->columnMajor = value;
     }
 
-    void AddVector(const VectorType& v)
+    void SetVector(size_t i, const VectorType& v)
     {
-        this->m_data.push_back(v);
+        m_data[i] = v;
     }
 
     inline size_t GetNumVectors() const { return M; }
@@ -51,7 +51,7 @@ public:
 
 protected:
     bool columnMajor = false; // default to row major.
-    std::vector<VectorType> m_data{};  // ✅ Now stores concrete type
+    std::array<VectorType, M> m_data{};  // ✅ Now stores concrete type
 
     // Common transpose data structure
     struct MatrixRawData
@@ -115,9 +115,9 @@ public:
         result->SetColumnMajor(transposed.newColumnMajor);
 
         // ✅ Create ScalarVectors from transposed data
-        for (const auto& vectorData : transposed.vectorData)
+        for (size_t i = 0; i < transposed.vectorData.size(); ++i)
         {
-            result->AddVector(ResultVectorType(vectorData));
+            result->SetVector(i, ResultVectorType(transposed.vectorData[i]));
         }
         return result;
     }
@@ -140,9 +140,9 @@ public:
         result->SetColumnMajor(transposed.newColumnMajor);
 
         // ✅ Create SparseVectors from transposed data
-        for (const auto& vectorData : transposed.vectorData)
+        for (size_t i = 0; i < transposed.vectorData.size(); ++i)
         {
-            result->AddVector(ResultVectorType(vectorData));
+            result->SetVector(i, ResultVectorType(transposed.vectorData[i]));
         }
         return result;
     }
