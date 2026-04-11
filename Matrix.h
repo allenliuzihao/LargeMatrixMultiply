@@ -28,16 +28,16 @@ protected:
     std::vector<VectorType> m_data{};  // ✅ Now stores concrete type
 
     // Common transpose data structure
-    struct TransposeData
+    struct MatrixRawData
     {
         bool newColumnMajor;
         std::vector<std::vector<ElementType>> vectorData;
     };
 
     // Unified transpose logic - in base class
-    TransposeData ComputeTranspose() const
+    MatrixRawData FlipStorageFormatHelper() const
     {
-        TransposeData result;
+        MatrixRawData result;
         result.newColumnMajor = !columnMajor;
 
         std::vector<ElementType> vData;
@@ -82,7 +82,7 @@ public:
     Matrix<VectorType, N, M> FlipStorageFormat() const override
     {
         // ✅ Use common ComputeTranspose() from base class
-        auto transposed = this->ComputeTranspose();
+        auto transposed = this->FlipStorageFormatHelper();
 
         ScalarMatrix<T, N, M> result;
         result.columnMajor = transposed.newColumnMajor;
@@ -106,7 +106,7 @@ public:
     Matrix<VectorType, N, M> FlipStorageFormat() const override
     {
         // ✅ Use common ComputeTranspose() from base class
-        auto transposed = this->ComputeTranspose();
+        auto transposed = this->FlipStorageFormatHelper();
 
         SparseMatrix<T, N, M> result;
         result.columnMajor = transposed.newColumnMajor;
