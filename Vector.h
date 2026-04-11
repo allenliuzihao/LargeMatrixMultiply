@@ -18,10 +18,18 @@ public:
         m_data.fill(T{});  // Initialize all elements to the default value of T
     }
 
-    // Constructor accepting array data
-    explicit ScalarVector(const std::array<T, N>& data)
+    // For std::array and other fixed-size containers (compile-time safety)
+    explicit ScalarVector(std::span<const T, N> data)
     {
-        m_data = data;  // Copy the input data to the member variable
+        std::copy(data.begin(), data.end(), m_data.begin());
+    }
+
+    // For std::vector (runtime check, more flexible)
+    template <size_t Extent = std::dynamic_extent>
+    explicit ScalarVector(std::span<const T> data) requires (Extent == std::dynamic_extent)
+    {
+        assert(data.size() == N);
+        std::copy(data.begin(), data.end(), m_data.begin());
     }
 
     // Protected getter to access elements
@@ -56,17 +64,18 @@ public:
         m_data.clear();
     }
 
-    // Constructor accepting array data
-    explicit SparseVector(const std::array<T, N>& data) 
+    // For std::array (compile-time safety)
+    explicit SparseVector(std::span<const T, N> data)
     {
-        for (int i = 0; i < N; ++i)
-        {
-            if (data[i] != T{}) // Only store non-zero elements
-            {
-                m_indices.push_back(i);
-                m_data.push_back(data[i]);
-            }
-        }
+        InitializeFromSpan(data);
+    }
+
+    // For std::vector (runtime check, more flexible)
+    template <size_t Extent = std::dynamic_extent>
+    explicit SparseVector(std::span<const T> data) requires (Extent == std::dynamic_extent)
+    {
+        assert(data.size() == N);
+        InitializeFromSpan(data);
     }
 
     // Constructor accepting std::map data
@@ -146,6 +155,20 @@ public:
     }
 
 private:
+    template <size_t Extent>
+    void InitializeFromSpan(std::span<const T, Extent> data)
+    {
+        for (size_t i = 0; i < data.size(); ++i)
+        {
+            if (data[i] != T{})
+            {
+                m_indices.push_back(i);
+                m_data.push_back(data[i]);
+            }
+        }
+    }
+
+
     std::vector<size_t> m_indices;
     std::vector<T> m_data;  
 };
