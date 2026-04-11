@@ -108,13 +108,11 @@ public:
 
     std::unique_ptr<Matrix<ResultVectorType, N, M>> FlipStorageFormat() const override
     {
-        // ✅ Use common ComputeTranspose() from base class
         auto transposed = this->FlipStorageFormatHelper();
 
         std::unique_ptr<ScalarMatrix<T, N, M>> result = std::make_unique<ScalarMatrix<T, N, M>>();
         result->SetColumnMajor(transposed.newColumnMajor);
 
-        // ✅ Create ScalarVectors from transposed data
         for (size_t i = 0; i < transposed.vectorData.size(); ++i)
         {
             result->SetVector(i, ResultVectorType(transposed.vectorData[i]));
@@ -133,13 +131,11 @@ public:
 
     std::unique_ptr<Matrix<ResultVectorType, N, M>> FlipStorageFormat() const override
     {
-        // ✅ Use common ComputeTranspose() from base class
         auto transposed = this->FlipStorageFormatHelper();
 
         std::unique_ptr<SparseMatrix<T, N, M>> result = std::make_unique<SparseMatrix<T, N, M>>();
         result->SetColumnMajor(transposed.newColumnMajor);
 
-        // ✅ Create SparseVectors from transposed data
         for (size_t i = 0; i < transposed.vectorData.size(); ++i)
         {
             result->SetVector(i, ResultVectorType(transposed.vectorData[i]));
