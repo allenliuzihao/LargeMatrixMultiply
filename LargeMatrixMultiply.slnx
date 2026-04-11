@@ -4,4 +4,5 @@
     <Platform Name="x86" />
   </Configurations>
   <Project Path="LargeMatrixMultiply.vcxproj" Id="d1a9d78c-c96e-4d76-a060-cf417acd8699" />
+  <Project Path="Tests/Tests.vcxproj" />
 </Solution>
