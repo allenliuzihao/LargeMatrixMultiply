@@ -8,6 +8,7 @@ class Matrix
 public:
     // VectorType is either ScalarVector<T, N> or SparseVector<T, N>
     using ElementType = typename VectorType::element_type;  // Extract T from VectorType
+    using ResultVectorType = typename VectorType::template Rebind<M>;
 
     VectorType operator*(const VectorType& vec) const
     {
@@ -19,9 +20,34 @@ public:
         return result;
     }
 
+    ElementType operator()(size_t row, size_t col) const
+    {
+        if (this->columnMajor)
+        {
+            return m_data[col][row]; // Access column-major
+        }
+        else
+        {
+            return m_data[row][col]; // Access row-major
+        }
+    }
+
+    void SetColumnMajor(bool value)
+    {
+        this->columnMajor = value;
+    }
+
+    void AddVector(const VectorType& v)
+    {
+        this->m_data.push_back(v);
+    }
+
+    inline size_t GetNumVectors() const { return M; }
+    inline size_t GetVectorSize() const { return N; }
+
     // Transpose operator: swaps rows and columns
     // Returns a Matrix<T, N, M> (dimensions swapped)
-    virtual Matrix<VectorType, N, M> FlipStorageFormat() const = 0;
+    virtual std::unique_ptr<Matrix<ResultVectorType, N, M>> FlipStorageFormat() const = 0;
 
 protected:
     bool columnMajor = false; // default to row major.
@@ -38,12 +64,12 @@ protected:
     MatrixRawData FlipStorageFormatHelper() const
     {
         MatrixRawData result;
-        result.newColumnMajor = !columnMajor;
+        result.newColumnMajor = !this->columnMajor;
 
         std::vector<ElementType> vData;
         vData.reserve(M);
 
-        if (columnMajor)
+        if (this->columnMajor)
         {
             // Column-major -> Row-major (M columns of size N become N rows of size M)
             for (size_t row = 0; row < N; ++row)
@@ -77,20 +103,21 @@ template <typename T, size_t M, size_t N>
 class ScalarMatrix : public Matrix<ScalarVector<T, N>, M, N>
 {
 public:
-    using VectorType = ScalarVector<T, M>;
+    using Base = Matrix<ScalarVector<T, N>, M, N>;
+    using ResultVectorType = typename Base::ResultVectorType;  // ✅ CRITICAL
 
-    Matrix<VectorType, N, M> FlipStorageFormat() const override
+    std::unique_ptr<Matrix<ResultVectorType, N, M>> FlipStorageFormat() const override
     {
         // ✅ Use common ComputeTranspose() from base class
         auto transposed = this->FlipStorageFormatHelper();
 
-        ScalarMatrix<T, N, M> result;
-        result.columnMajor = transposed.newColumnMajor;
+        std::unique_ptr<ScalarMatrix<T, N, M>> result = std::make_unique<ScalarMatrix<T, N, M>>();
+        result->SetColumnMajor(transposed.newColumnMajor);
 
         // ✅ Create ScalarVectors from transposed data
         for (const auto& vectorData : transposed.vectorData)
         {
-            result.m_data.push_back(VectorType(vectorData));
+            result->AddVector(ResultVectorType(vectorData));
         }
         return result;
     }
@@ -101,22 +128,22 @@ template <typename T, size_t M, size_t N>
 class SparseMatrix : public Matrix<SparseVector<T, N>, M, N>
 {
 public: 
-    using VectorType = SparseVector<T, M>;
+    using Base = Matrix<SparseVector<T, N>, M, N>;
+    using ResultVectorType = typename Base::ResultVectorType; 
 
-    Matrix<VectorType, N, M> FlipStorageFormat() const override
+    std::unique_ptr<Matrix<ResultVectorType, N, M>> FlipStorageFormat() const override
     {
         // ✅ Use common ComputeTranspose() from base class
         auto transposed = this->FlipStorageFormatHelper();
 
-        SparseMatrix<T, N, M> result;
-        result.columnMajor = transposed.newColumnMajor;
+        std::unique_ptr<SparseMatrix<T, N, M>> result = std::make_unique<SparseMatrix<T, N, M>>();
+        result->SetColumnMajor(transposed.newColumnMajor);
 
         // ✅ Create SparseVectors from transposed data
         for (const auto& vectorData : transposed.vectorData)
         {
-            result.m_data.push_back(VectorType(vectorData));
+            result->AddVector(ResultVectorType(vectorData));
         }
-
         return result;
     }
 };
