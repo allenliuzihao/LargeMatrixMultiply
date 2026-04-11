@@ -190,5 +190,81 @@ namespace VectorTests
 			Assert::AreEqual(0.0f, (*vec)[1], L"Missing element at index 1 should return 0.");
 			Assert::AreEqual(2.0f, (*vec)[3], L"Element at index 3 should be 2.");
 		}
+
+		TEST_METHOD(TestSparseVsScalarPerformance_MixedVectors)
+		{
+			// Compare: SparseVector · ScalarVector vs ScalarVector · ScalarVector
+			constexpr size_t VECTOR_SIZE = 10000;
+			constexpr size_t SPARSITY = 100;  // 1% non-zero elements
+
+			// Create sparse data
+			std::map<size_t, float> sparseData;
+			std::array<float, VECTOR_SIZE> scalarData1;
+			std::array<float, VECTOR_SIZE> scalarData2;
+
+			scalarData1.fill(0.0f);
+			scalarData2.fill(0.0f);
+
+			// Populate with 1% non-zero values at same positions
+			for (size_t i = 0; i < VECTOR_SIZE; i += SPARSITY)
+			{
+				float val = static_cast<float>(i % 10 + 1);
+				sparseData[i] = val;
+				scalarData1[i] = val;
+				scalarData2[i] = val * 2.0f;  // Different values for second vector
+			}
+
+			// Create vectors
+			auto sparseVec = std::make_unique<SparseVector<float, VECTOR_SIZE>>(sparseData);
+			auto scalarVec1 = std::make_unique<ScalarVector<float, VECTOR_SIZE>>(scalarData1);
+			auto scalarVec2 = std::make_unique<ScalarVector<float, VECTOR_SIZE>>(scalarData2);
+
+			// Benchmark: SparseVector · ScalarVector
+			auto startSparseScalar = std::chrono::high_resolution_clock::now();
+			float sparseScalarResult = sparseVec->Dot(*scalarVec2);
+			for (int i = 0; i < 999; ++i)
+			{
+				sparseScalarResult = sparseVec->Dot(*scalarVec2);
+			}
+			auto endSparseScalar = std::chrono::high_resolution_clock::now();
+			auto sparseScalarDuration = std::chrono::duration_cast<std::chrono::milliseconds>(
+				endSparseScalar - startSparseScalar);
+
+			// Benchmark: ScalarVector · ScalarVector
+			auto startScalarScalar = std::chrono::high_resolution_clock::now();
+			float scalarScalarResult = scalarVec1->Dot(*scalarVec2);
+			for (int i = 0; i < 999; ++i)
+			{
+				scalarScalarResult = scalarVec1->Dot(*scalarVec2);
+			}
+			auto endScalarScalar = std::chrono::high_resolution_clock::now();
+			auto scalarScalarDuration = std::chrono::duration_cast<std::chrono::milliseconds>(
+				endScalarScalar - startScalarScalar);
+
+			// Results should be equal
+			Assert::AreEqual(scalarScalarResult, sparseScalarResult, 0.01f,
+				L"Sparse·Scalar and Scalar·Scalar should produce same result");
+
+			// Calculate speedup
+			double speedup = static_cast<double>(scalarScalarDuration.count()) /
+				static_cast<double>(sparseScalarDuration.count());
+
+			// Log detailed performance metrics
+			std::wstring message =
+				L"Test: SparseVector dot ScalarVector vs ScalarVector dot ScalarVector\n" +
+				std::wstring(L"Vector Size: ") + std::to_wstring(VECTOR_SIZE) +
+				L", Non-zero Elements: " + std::to_wstring(VECTOR_SIZE / SPARSITY) + L" (1%)\n" +
+				L"\nPerformance Results (1000 iterations):\n" +
+				L"SparseVector dot ScalarVector: " + std::to_wstring(sparseScalarDuration.count()) + L" ms\n" +
+				L"ScalarVector dot ScalarVector:  " + std::to_wstring(scalarScalarDuration.count()) + L" ms\n" +
+				L"\nSpeedup: " + std::to_wstring(speedup) + L"x faster\n" +
+				L"Result: " + std::to_wstring(sparseScalarResult);
+
+			Logger::WriteMessage(message.c_str());
+
+			// Sparse should be significantly faster (speedup > 1.0)
+			Assert::IsTrue(speedup > 1.0,
+				L"SparseVector · ScalarVector should be faster for sparse data");
+		}
 	};
 }
