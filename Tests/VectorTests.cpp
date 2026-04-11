@@ -91,4 +91,104 @@ namespace VectorTests
 			Assert::AreEqual(0.14f, dotProduct, 0.0001f, L"Dot product of [0.1,0.2,0.3] with itself should be ~0.14.");
 		}
 	};
+
+	TEST_CLASS(SparseVectorTests)
+	{
+	public:
+		TEST_METHOD(TestSparseVectorDot_ZeroVector)
+		{
+			// Empty sparse vector should have dot product of 0 with itself
+			std::unique_ptr<Vector<float, 5>> vec1 = std::make_unique<SparseVector<float, 5>>();
+			std::unique_ptr<Vector<float, 5>> vec2 = std::make_unique<SparseVector<float, 5>>();
+			float dotProduct = vec1->Dot(*vec2);
+			Assert::AreEqual(0.0f, dotProduct, L"Dot product of two empty sparse vectors should be 0.");
+		}
+
+		TEST_METHOD(TestSparseVectorDot_SingleElement)
+		{
+			// Sparse vector with single non-zero element
+			std::map<size_t, float> data1 = { {0, 5.0f} };
+			std::map<size_t, float> data2 = { {0, 3.0f} };
+			std::unique_ptr<Vector<float, 5>> vec1 = std::make_unique<SparseVector<float, 5>>(data1);
+			std::unique_ptr<Vector<float, 5>> vec2 = std::make_unique<SparseVector<float, 5>>(data2);
+			float dotProduct = vec1->Dot(*vec2);
+			Assert::AreEqual(15.0f, dotProduct, L"Dot product: 5 * 3 = 15.");
+		}
+
+		TEST_METHOD(TestSparseVectorDot_NoCommonElements)
+		{
+			// Sparse vectors with no common non-zero indices
+			std::map<size_t, float> data1 = { {0, 2.0f}, {1, 3.0f} };
+			std::map<size_t, float> data2 = { {3, 4.0f}, {4, 5.0f} };
+			std::unique_ptr<Vector<float, 5>> vec1 = std::make_unique<SparseVector<float, 5>>(data1);
+			std::unique_ptr<Vector<float, 5>> vec2 = std::make_unique<SparseVector<float, 5>>(data2);
+			float dotProduct = vec1->Dot(*vec2);
+			Assert::AreEqual(0.0f, dotProduct, L"Dot product with no common elements should be 0.");
+		}
+
+		TEST_METHOD(TestSparseVectorDot_PartialOverlap)
+		{
+			// Sparse vectors with partial overlap: [2, 3, 0, 0, 0] · [0, 4, 0, 5, 0] = 12
+			std::map<size_t, float> data1 = { {0, 2.0f}, {1, 3.0f} };
+			std::map<size_t, float> data2 = { {1, 4.0f}, {3, 5.0f} };
+			std::unique_ptr<Vector<float, 5>> vec1 = std::make_unique<SparseVector<float, 5>>(data1);
+			std::unique_ptr<Vector<float, 5>> vec2 = std::make_unique<SparseVector<float, 5>>(data2);
+			float dotProduct = vec1->Dot(*vec2);
+			Assert::AreEqual(12.0f, dotProduct, L"Dot product: (2*0) + (3*4) + (0*0) + (0*5) + (0*0) = 12.");
+		}
+
+		TEST_METHOD(TestSparseVectorDot_AllCommonElements)
+		{
+			// Sparse vectors with all elements at same indices: [1, 2, 3, 0, 0] · [2, 3, 4, 0, 0] = 2 + 6 + 12 = 20
+			std::map<size_t, float> data1 = { {0, 1.0f}, {1, 2.0f}, {2, 3.0f} };
+			std::map<size_t, float> data2 = { {0, 2.0f}, {1, 3.0f}, {2, 4.0f} };
+			std::unique_ptr<Vector<float, 5>> vec1 = std::make_unique<SparseVector<float, 5>>(data1);
+			std::unique_ptr<Vector<float, 5>> vec2 = std::make_unique<SparseVector<float, 5>>(data2);
+			float dotProduct = vec1->Dot(*vec2);
+			Assert::AreEqual(20.0f, dotProduct, L"Dot product: (1*2) + (2*3) + (3*4) = 20.");
+		}
+
+		TEST_METHOD(TestSparseVectorDot_WithScalarVector)
+		{
+			// Sparse vector dot product with scalar vector
+			std::map<size_t, float> sparseData = { {0, 1.0f}, {2, 2.0f} };
+			std::array<float, 5> scalarData = { 1.0f, 0.0f, 2.0f, 0.0f, 0.0f };
+			std::unique_ptr<Vector<float, 5>> sparseVec = std::make_unique<SparseVector<float, 5>>(sparseData);
+			std::unique_ptr<Vector<float, 5>> scalarVec = std::make_unique<ScalarVector<float, 5>>(scalarData);
+			float dotProduct = sparseVec->Dot(*scalarVec);
+			Assert::AreEqual(5.0f, dotProduct, L"Dot product: (1*1) + (0*0) + (2*2) + (0*0) + (0*0) = 5.");
+		}
+
+		TEST_METHOD(TestSparseVectorDot_NegativeValues)
+		{
+			// Sparse vector with negative values: [-1, 2, 0, 0, 0] · [3, -1, 0, 0, 0] = -3 - 2 = -5
+			std::map<size_t, float> data1 = { {0, -1.0f}, {1, 2.0f} };
+			std::map<size_t, float> data2 = { {0, 3.0f}, {1, -1.0f} };
+			std::unique_ptr<Vector<float, 5>> vec1 = std::make_unique<SparseVector<float, 5>>(data1);
+			std::unique_ptr<Vector<float, 5>> vec2 = std::make_unique<SparseVector<float, 5>>(data2);
+			float dotProduct = vec1->Dot(*vec2);
+			Assert::AreEqual(-5.0f, dotProduct, L"Dot product: (-1*3) + (2*-1) = -5.");
+		}
+
+		TEST_METHOD(TestSparseVectorDot_IntegerType)
+		{
+			// Test sparse vector with integer type
+			std::map<size_t, int> data1 = { {0, 2}, {2, 3} };
+			std::map<size_t, int> data2 = { {0, 4}, {2, 2} };
+			std::unique_ptr<Vector<int, 5>> vec1 = std::make_unique<SparseVector<int, 5>>(data1);
+			std::unique_ptr<Vector<int, 5>> vec2 = std::make_unique<SparseVector<int, 5>>(data2);
+			float dotProduct = vec1->Dot(*vec2);
+			Assert::AreEqual(14.0f, dotProduct, L"Dot product with int type: (2*4) + (3*2) = 14.");
+		}
+
+		TEST_METHOD(TestSparseVectorAccessor_MissingElement)
+		{
+			// Accessing missing elements should return 0
+			std::map<size_t, float> data = { {0, 5.0f}, {3, 2.0f} };
+			auto vec = std::make_unique<SparseVector<float, 5>>(data);
+			Assert::AreEqual(5.0f, (*vec)[0], L"Element at index 0 should be 5.");
+			Assert::AreEqual(0.0f, (*vec)[1], L"Missing element at index 1 should return 0.");
+			Assert::AreEqual(2.0f, (*vec)[3], L"Element at index 3 should be 2.");
+		}
+	};
 }

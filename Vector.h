@@ -49,6 +49,13 @@ template <FloatOrInt T, size_t N>
 class SparseVector : public Vector<T, N>
 {
 public:
+    // Explicit default constructor
+    SparseVector()
+    {
+        m_indices.clear();
+        m_data.clear();
+    }
+
     // Constructor accepting array data
     explicit SparseVector(const std::array<T, N>& data) 
     {
@@ -60,6 +67,26 @@ public:
                 m_data.push_back(data[i]);
             }
         }
+    }
+
+    // Constructor accepting std::map data
+    explicit SparseVector(const std::map<size_t, T>& data)
+    {
+        for (const auto& [index, value] : data)
+        {
+            assert(index < N);
+            if (value != T{})  // Only store non-zero elements
+            {
+                m_indices.push_back(index);
+                m_data.push_back(value);
+            }
+        }
+    }
+
+    // Get non-zero element count
+    size_t GetNonZeroCount() const
+    {
+        return m_indices.size();
     }
 
     float Dot(const Vector<T, N>& other) const override
@@ -78,25 +105,18 @@ public:
     // Protected getter to access elements
     const T& operator[](size_t index) const override
     {
-        // binary search on m_indices to find the index
-        int left = 0, right = m_indices.size() - 1;
-        while (left <= right)
+        assert(index < N);
+
+        // Binary search on m_indices to find the index
+        auto it = std::lower_bound(m_indices.begin(), m_indices.end(), index);
+        if (it != m_indices.end() && *it == index)
         {
-            int mid = left + (right - left) / 2;
-            if (m_indices[mid] == index)
-            {
-                return m_data[mid];
-            }
-            else if (m_indices[mid] < index)
-            {
-                left = mid + 1;
-            }
-            else
-            {
-                right = mid - 1;
-            }
+            return m_data[std::distance(m_indices.begin(), it)];
         }
-        return T{}; // Return default value if
+
+        // Return default value if not found
+        static const T zero = T{};
+        return zero;
     }
 
 private:
