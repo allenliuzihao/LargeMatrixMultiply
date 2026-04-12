@@ -150,9 +150,7 @@ private:
             {
                 uint32_t colIndex = m_indices[c];
                 uint32_t destIndex = colPrefix[colIndex]++; // Get the next available position in the column
-
-                newIndices[destIndex] = r; // Store the row index in the indices array
-                // Move the value to the correct position in the values array
+                newIndices[destIndex] = r;
                 newValues[destIndex] = m_values[c];
             }
         }
@@ -165,7 +163,49 @@ private:
     void ConvertCSCtoCSR()
     {
         // Implementation for converting CSC format to CSR format
+        std::vector<uint32_t> rowPrefix(M, 0); // Count of non-zero entries in each row
+        // for each column, iterate through the non-zero entries and count how many entries are in each row
+        for (size_t i = 0; i < N; ++i)
+        {
+            // Iterate through the non-zero entries in the current column
+            for (size_t j = m_pointers[i]; j < m_pointers[i + 1]; ++j)
+            {
+                rowPrefix[m_indices[j]]++;
+            }
+        }
 
+        // compute prefix sum to get column pointers
+        uint32_t cumulativeCount = 0;
+        for (size_t j = 0; j < M; ++j)
+        {
+            uint32_t temp = rowPrefix[j];
+            rowPrefix[j] = cumulativeCount;
+            cumulativeCount += temp;
+        }
+        rowPrefix.push_back(cumulativeCount);
+
+        // Create new vectors for the transposed matrix
+        std::vector<uint32_t> newPointers = rowPrefix; // Copy the row pointers to a new vector
+        size_t numValues = m_values.size();
+        std::vector<T> newValues(numValues); // Create a new vector for values
+        std::vector<uint32_t> newIndices(numValues); // Create a new vector for indices
+
+        // r is row index, c is column index
+        for (size_t c = 0; c < N; ++c)
+        {
+            // Iterate through the non-zero entries in the current column
+            for (size_t r = m_pointers[c]; r < m_pointers[c + 1]; ++r)
+            {
+                uint32_t rowIndex = m_indices[r];
+                uint32_t destIndex = rowPrefix[rowIndex]++; // Get the next available position in the row
+                newIndices[destIndex] = c;
+                newValues[destIndex] = m_values[r];
+            }
+        }
+
+        std::swap(m_pointers, newPointers); // Update the pointers to the new row pointers
+        std::swap(m_values, newValues);     // Update the values to the new values
+        std::swap(m_indices, newIndices);   // Update the indices to the new indices
     }
 
     std::vector<T> m_values{};
