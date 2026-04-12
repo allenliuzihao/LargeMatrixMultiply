@@ -108,8 +108,11 @@ public:
         InitializeFromSpan(data);
     }
 
-    SparseVector(const ScalarVector<T, N>& scalarVec)
+    explicit SparseVector(const ScalarVector<T, N>& scalarVec)
     {
+        m_indices.reserve(N);
+        m_data.reserve(N);
+
         for (size_t i = 0; i < N; ++i)
         {
             const T& v = scalarVec[i];
@@ -121,17 +124,12 @@ public:
         }
     }
 
-    // For std::vector (runtime check, more flexible)
-    template <size_t Extent = std::dynamic_extent>
-    explicit SparseVector(std::span<const T> data) requires (Extent == std::dynamic_extent)
-    {
-        assert(data.size() == N);
-        InitializeFromSpan(data);
-    }
-
     // Constructor accepting std::map data
     explicit SparseVector(const std::map<size_t, T>& data)
     {
+        m_indices.reserve(data.size());
+        m_data.reserve(data.size());
+
         for (const auto& [index, value] : data)
         {
             assert(index < N);
@@ -141,6 +139,14 @@ public:
                 m_data.push_back(value);
             }
         }
+    }
+
+    // For std::vector (runtime check, more flexible)
+    template <size_t Extent = std::dynamic_extent>
+    explicit SparseVector(std::span<const T> data) requires (Extent == std::dynamic_extent)
+    {
+        assert(data.size() == N);
+        InitializeFromSpan(data);
     }
 
     // Get non-zero element count
