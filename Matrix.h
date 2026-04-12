@@ -110,9 +110,29 @@ public:
     }
 
     template <size_t K>
-    std::unique_ptr<ScalarMatrix<T, M, K>> RightMultiply(const ScalarMatrix<T, N, K>& other) const
+    std::unique_ptr<ScalarMatrix<T, M, K>> RightMultiply(const ScalarMatrix<T, N, K>& other) const 
     {
-        return nullptr;
+        if (this->m_isColumnMajor || !other.m_isColumnMajor)
+        {
+            throw std::runtime_error("Matrix multiplication requires this to be row-major and the other to be column-major.");
+        }
+
+        std::unique_ptr<ScalarMatrix<T, M, K>> result = std::make_unique<ScalarMatrix<T, M, K>>(); // Create a result matrix of size MxK, row major
+        for (size_t m = 0; m < M; ++m)
+        {
+            for (size_t k = 0; k < K; ++k)
+            {
+                T sum = T{};
+                for (size_t n = 0; n < N; ++n)
+                {
+                    // m_data: row_major index of dimension M x N 
+                    // other.m_data: column_major index, of dimension N x K
+                    sum += m_data[m * N + n] * other.m_data[k * N + n]; // Assuming other is in column-major order
+                }
+                (*result).m_data[m * K + k] = sum;
+            }
+        }
+        return result;
     }
 
     size_t TotalMemoryBytes() const override
@@ -241,9 +261,74 @@ public:
     inline size_t GetNonZeroCount() const { return m_values.size(); }
 
     template <size_t K>
-    std::unique_ptr<ScalarMatrix<T, M, K>> RightMultiply(const SparseMatrix<T, N, K>& other) const
+    std::unique_ptr<ScalarMatrix<T, M, K>> RightMultiply(const ScalarMatrix<T, N, K>& other) const 
     {
-        return nullptr;
+        if (this->m_isColumnMajor || !other.m_isColumnMajor)
+        {
+            throw std::runtime_error("Matrix multiplication requires this to be row-major and the other to be column-major.");
+        }
+
+        std::unique_ptr<ScalarMatrix<T, M, K>> result = std::make_unique<ScalarMatrix<T, M, K>>(); // Create a result matrix of size MxK, row major
+        for (size_t m = 0; m < M; ++m)
+        {
+            for (size_t k = 0; k < K; ++k)
+            {
+                T sum = T{};
+
+                // iterate over all non-zero entries in the m-th row of this matrix
+                for (size_t j = m_pointers[m]; j < m_pointers[m + 1]; ++j)
+                {
+                    size_t n = m_indices[j]; // Get the column index of the non-zero entry
+                    sum += m_values[j] * other.m_data[k * N + n]; // Multiply the non-zero value with the corresponding element in the other matrix and accumulate
+                }
+                (*result).m_data[m * K + k] = sum;
+            }
+        }
+        return result;
+    }
+
+    template <size_t K>
+    std::unique_ptr<ScalarMatrix<T, M, K>> RightMultiply(const SparseMatrix<T, N, K>& other) const 
+    {
+        if (this->m_isColumnMajor || !other.m_isColumnMajor)
+        {
+            throw std::runtime_error("Matrix multiplication requires this to be row-major and the other to be column-major.");
+        }
+
+        std::unique_ptr<ScalarMatrix<T, M, K>> result = std::make_unique<ScalarMatrix<T, M, K>>(); // Create a result matrix of size MxK, row major
+        for (size_t m = 0; m < M; ++m)
+        {
+            for (size_t k = 0; k < K; ++k)
+            {
+                T sum = T{};
+                // two pointers technique to iterate through the non-zero entries of the m-th row of this matrix and the k-th column of the other matrix
+                uint32_t m_pointer = m_pointers[m], m_pointer_end = m_pointers[m + 1];
+                uint32_t k_pointer = other.m_pointers[k], k_pointer_end = other.m_pointers[k + 1];
+
+                while (m_pointer < m_pointer_end && k_pointer < k_pointer_end)
+                {
+                    uint32_t m_col_index = m_indices[m_pointer]; // Column index of the non-zero entry in the m-th row
+                    uint32_t k_row_index = other.m_indices[k_pointer]; // Row index of the non-zero entry in the k-th column
+                    if (m_col_index == k_row_index)
+                    {
+                        sum += m_values[m_pointer] * other.m_values[k_pointer]; // Multiply the non-zero values and accumulate
+                        ++m_pointer;
+                        ++k_pointer;
+                    }
+                    else if (m_col_index < k_row_index)
+                    {
+                        ++m_pointer; // Move to the next non-zero entry in the m-th row
+                    }
+                    else
+                    {
+                        ++k_pointer; // Move to the next non-zero entry in the k-th column
+                    }
+                }                
+                // save result.
+                (*result).m_data[m * K + k] = sum;
+            }
+        }
+        return result;
     }
 
     size_t TotalMemoryBytes() const override
