@@ -189,17 +189,17 @@ public:
             m_pointers.reserve(N + 1);
             if (matrix.isColumnMajor())
             {
-                BuildCSCMatrixColumnMajor(matrix.m_data, M * N); // Assuming m_data is a 1D array storing the matrix data in column-major order
+                BuildCSCMatrixColumnMajor(matrix.m_data, matrix.m_size); // Assuming m_data is a 1D array storing the matrix data in column-major order
             }
             else
             {
-                BuildCSCMatrixRowMajor(matrix.m_data, M * N); // Assuming m_data is a 1D array storing the matrix data in row-major order
+                BuildCSCMatrixRowMajor(matrix.m_data, matrix.m_size); // Assuming m_data is a 1D array storing the matrix data in row-major order
             }
         }
         else
         {
             m_pointers.reserve(M + 1);
-            BuildCSRMatrix(matrix.m_data, M * N); // Assuming m_data is a 1D array storing the matrix data
+            BuildCSRMatrix(matrix.m_data, matrix.m_size); // Assuming m_data is a 1D array storing the matrix data
         }
 
         // Set the storage format based on the input matrix
