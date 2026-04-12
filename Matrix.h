@@ -8,8 +8,8 @@ class Matrix
 public:
     Matrix(bool isColumnMajor = false) : m_isColumnMajor(isColumnMajor) {}
     
-    inline size_t GetNumVectors() const { return M; }
-    inline size_t GetVectorSize() const { return N; }
+    inline size_t GetNumRows() const { return M; }
+    inline size_t GetNumCols() const { return N; }
     inline bool IsColumnMajor() const { return m_isColumnMajor; }
 
 
@@ -217,6 +217,8 @@ public:
         }
         return result;
     }
+
+    inline size_t GetNonZeroCount() const { return m_values.size(); }
 
 private:
     // data is stored in row major order, so we can iterate through each row and build the CSR format
