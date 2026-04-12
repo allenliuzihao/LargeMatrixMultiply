@@ -41,7 +41,18 @@ public:
 
     std::unique_ptr<ScalarVector<T, M>> Multiply(const ScalarVector<T, N>& vec) const override
     {
-        return nullptr;
+        std::unique_ptr<ScalarVector<T, M>> result = std::make_unique<ScalarVector<T, M>>(); // Create a result vector of size M
+        // for each matrix row, we can compute the dot product of the row with the input vector
+        for (size_t i = 0; i < M; ++i)
+        {
+            T sum = T{};
+            for (size_t j = 0; j < N; ++j)
+            {
+                sum += (*this)(i, j) * vec[j];
+            }
+            (*result)[i] = sum;
+        }
+        return result;
     }
 
     const T& operator()(size_t row, size_t col) const override
