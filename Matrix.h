@@ -12,10 +12,10 @@ public:
     inline size_t GetVectorSize() const { return N; }
     inline bool IsColumnMajor() const { return m_isColumnMajor; }
 
-    virtual const T& operator()(size_t row, size_t col) const = 0;
-    virtual T& operator()(size_t row, size_t col) = 0;
 
-    virtual std::unique_ptr<ScalarVector<T, M>> Multiply(const ScalarVector<T, N>& vec) const = 0;
+    virtual void FlipStorageFormat() = 0;
+    virtual std::unique_ptr<ScalarVector<T, M>> LeftMultiply(const ScalarVector<T, N>& vec) const = 0;
+    virtual std::unique_ptr<ScalarVector<T, M>> RightMultiply(const ScalarVector<T, N>& vec) const = 0;
 
 protected:
     bool m_isColumnMajor = false;  // Default to row-major order
@@ -39,8 +39,45 @@ public:
         }
     }
 
-    std::unique_ptr<ScalarVector<T, M>> Multiply(const ScalarVector<T, N>& vec) const override
+    void FlipStorageFormat() override
     {
+        // given the current storage format, we can transpose the matrix to switch between row-major and column-major
+        if (this->m_isColumnMajor)
+        {
+            // If currently column-major, we need to transpose the data to row-major
+            std::vector<std::vector<T>> transposedData(M, std::vector<T>(N)); // Create a new vector for the transposed data
+            for (size_t i = 0; i < N; ++i)
+            {
+                for (size_t j = 0; j < M; ++j)
+                {
+                    transposedData[j][i] = (*this)(i, j); // Transpose the element
+                }
+            }
+            m_data = std::move(transposedData); // Update the data with the transp
+        }
+        else
+        {
+            // If currently row-major, we need to transpose the data to column-major
+            std::vector<std::vector<T>> transposedData(N, std::vector<T>(M)); // Create a new vector for the transposed data
+            for (size_t i = 0; i < M; ++i)
+            {
+                for (size_t j = 0; j < N; ++j)
+                {
+                    transposedData[j][i] = (*this)(i, j); // Transpose the element
+                }
+            }
+            m_data = std::move(transposedData); // Update the data with the transposed data
+        }
+        this->m_isColumnMajor = !this->m_isColumnMajor; // Toggle the storage format flag
+    }
+
+    std::unique_ptr<ScalarVector<T, M>> RightMultiply(const ScalarVector<T, N>& vec) const override
+    {
+        if (this->m_isColumnMajor)
+        {
+            throw std::runtime_error("Right multiplication is not supported for column-major format. Please flip the storage format to row-major before performing right multiplication.");
+        }
+
         std::unique_ptr<ScalarVector<T, M>> result = std::make_unique<ScalarVector<T, M>>(); // Create a result vector of size M
         // for each matrix row, we can compute the dot product of the row with the input vector
         for (size_t i = 0; i < M; ++i)
@@ -55,25 +92,25 @@ public:
         return result;
     }
 
-    const T& operator()(size_t row, size_t col) const override
-    {
-        if (this->m_isColumnMajor)
-        {
-            return m_data[col][row]; // Accessing as column-major
-        }
-        return m_data[row][col];
-    }
-
-    T& operator()(size_t row, size_t col) override
-    {
-        if (this->m_isColumnMajor)
-        {
-            return m_data[col][row]; // Accessing as column-major
-        }
-        return m_data[row][col];
-    }
-
 private:
+    const T& operator()(size_t row, size_t col) const
+    {
+        if (this->m_isColumnMajor)
+        {
+            return m_data[col][row]; // Accessing as column-major
+        }
+        return m_data[row][col];
+    }
+
+    T& operator()(size_t row, size_t col)
+    {
+        if (this->m_isColumnMajor)
+        {
+            return m_data[col][row]; // Accessing as column-major
+        }
+        return m_data[row][col];
+    }
+
     std::vector<std::vector<T>> m_data{}; // 2D vector to store matrix data
 };
 
@@ -101,7 +138,7 @@ public:
         }
     }
 
-    void FlipStorageFormat()
+    void FlipStorageFormat() override
     {
         // given the current storage format, we can convert it to the other format
         if (this->m_isColumnMajor)
@@ -115,9 +152,24 @@ public:
         this->m_isColumnMajor = !this->m_isColumnMajor; // Toggle the storage format flag
     }
 
-    std::unique_ptr<ScalarVector<T, M>> Multiply(const ScalarVector<T, N>& vec) const override
+    std::unique_ptr<ScalarVector<T, M>> RightMultiply(const ScalarVector<T, N>& vec) const override
     {
-        return nullptr;
+        if (this->m_isColumnMajor)
+        {
+            throw std::runtime_error("Right multiplication is not supported for column-major format. Please flip the storage format to row-major before performing right multiplication.");
+        }
+
+        std::unique_ptr<ScalarVector<T, M>> result = std::make_unique<ScalarVector<T, M>>(); // Create a result vector of size M
+        for (size_t i = 0; i < M; ++i)
+        {
+            // Iterate through the non-zero entries in the current row
+            for (size_t j = m_pointers[i]; j < m_pointers[i + 1]; ++j)
+            {
+                uint32_t colIndex = m_indices[j];
+                (*result)[i] += m_values[j] * vec[colIndex]; // Multiply the non-zero value with the corresponding vector element and accumulate
+            }
+        }
+        return result;
     }
 
 private:
@@ -203,9 +255,9 @@ private:
             }
         }
 
+        std::swap(m_values, newValues); // Update the values to the new values
+        std::swap(m_indices, newIndices); // Update the indices to the new indices
         std::swap(m_pointers, newPointers); // Update the pointers to the new column pointers
-        std::swap(m_values, newValues);     // Update the values to the new values
-        std::swap(m_indices, newIndices);   // Update the indices to the new indices
     }
 
     void ConvertCSCtoCSR()
@@ -251,13 +303,13 @@ private:
             }
         }
 
-        std::swap(m_pointers, newPointers); // Update the pointers to the new row pointers
-        std::swap(m_values, newValues);     // Update the values to the new values
-        std::swap(m_indices, newIndices);   // Update the indices to the new indices
+        std::swap(m_values, newValues); // Update the values to the new values
+        std::swap(m_indices, newIndices); // Update the indices to the new indices
+        std::swap(m_pointers, newPointers); // Update the pointers to the new column pointers
     }
 
     std::vector<T> m_values{};
-    std::vector<T> m_pointers{};
-    std::vector<T> m_indices{};
+    std::vector<uint32_t> m_pointers{};
+    std::vector<uint32_t> m_indices{};
 };
 
