@@ -224,11 +224,11 @@ private:
                 if (value != T{}) // Assuming T{} is the default value representing zero
                 {
                     m_values.push_back(value); // Store non-zero value
-                    m_indices.push_back(j);    // Store column index of the non-zero value
+                    m_indices.push_back(static_cast<uint32_t>(j));    // Store column index of the non-zero value
                 }
             }
         }
-        m_pointers.push_back(m_values.size()); // End of the last row
+        m_pointers.push_back(static_cast<uint32_t>(m_values.size())); // End of the last row
     }
 
     void BuildCSCMatrix(const T* data, size_t size)
@@ -244,11 +244,11 @@ private:
                 if (value != T{}) // Assuming T{} is the default value representing zero
                 {
                     m_values.push_back(value); // Store non-zero value
-                    m_indices.push_back(i);    // Store row index of the non-zero value
+                    m_indices.push_back(static_cast<uint32_t>(i));    // Store row index of the non-zero value
                 }
             }
         }
-        m_pointers.push_back(m_values.size()); // End of the last column
+        m_pointers.push_back(static_cast<uint32_t>(m_values.size())); // End of the last column
     }
 
     void ConvertCSRtoCSC()
@@ -288,7 +288,7 @@ private:
             {
                 uint32_t colIndex = m_indices[c];
                 uint32_t destIndex = colPrefix[colIndex]++; // Get the next available position in the column
-                newIndices[destIndex] = r;
+                newIndices[destIndex] = static_cast<uint32_t>(r);
                 newValues[destIndex] = m_values[c];
             }
         }
@@ -336,7 +336,7 @@ private:
             {
                 uint32_t rowIndex = m_indices[r];
                 uint32_t destIndex = rowPrefix[rowIndex]++; // Get the next available position in the row
-                newIndices[destIndex] = c;
+                newIndices[destIndex] = static_cast<uint32_t>(c);
                 newValues[destIndex] = m_values[r];
             }
         }

@@ -11,6 +11,7 @@ public:
 
     virtual float Dot(const Vector<T, N>& other) const = 0;
     virtual const T& operator[](size_t index) const = 0;
+    virtual T& operator[](size_t index) = 0;
 };
 
 template <FloatOrInt T, size_t N>
@@ -42,6 +43,12 @@ public:
 
     // Protected getter to access elements
     const T& operator[](size_t index) const override
+    {
+        assert(index < m_data.size());
+        return m_data[index];
+    }
+
+    T& operator[](size_t index) override
     {
         assert(index < m_data.size());
         return m_data[index];
@@ -165,6 +172,23 @@ public:
         return zero;
     }
 
+    T& operator[](size_t index) override
+    {
+        assert(index < N);
+        // Binary search on m_indices to find the index,
+        //  the following returns the position where the index would be inserted if it is not found
+        auto it = std::lower_bound(m_indices.begin(), m_indices.end(), index);
+        if (it != m_indices.end() && *it == index)
+        {
+            return m_data[std::distance(m_indices.begin(), it)];
+        }
+        // If not found, we need to insert a new non-zero element
+        auto pos = std::distance(m_indices.begin(), it);
+        m_indices.insert(it, index);  // Insert the new index in sorted order
+        m_data.insert(m_data.begin() + pos, T{});  // Insert default value for the new index
+        return m_data[pos];  // Return reference to the newly inserted element
+    }
+
 private:
     template <size_t Extent>
     void InitializeFromSpan(std::span<const T, Extent> data)
@@ -178,7 +202,6 @@ private:
             }
         }
     }
-
 
     std::vector<size_t> m_indices;
     std::vector<T> m_data;  

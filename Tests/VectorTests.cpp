@@ -186,9 +186,15 @@ namespace VectorTests
 			// Accessing missing elements should return 0
 			std::map<size_t, float> data = { {0, 5.0f}, {3, 2.0f} };
 			auto vec = std::make_unique<SparseVector<float, 5>>(data);
-			Assert::AreEqual(5.0f, (*vec)[0], L"Element at index 0 should be 5.");
-			Assert::AreEqual(0.0f, (*vec)[1], L"Missing element at index 1 should return 0.");
-			Assert::AreEqual(2.0f, (*vec)[3], L"Element at index 3 should be 2.");
+			const SparseVector<float, 5>& v = *vec;
+
+            const float& valueAt0 = v[0];  // Should return 5.0f
+			const float& valueAt1 = v[1];  // Should return 0.0f
+			const float& valueAt3 = v[3];  // Should return 2.0f
+
+			Assert::AreEqual(5.0f, valueAt0, L"Element at index 0 should be 5.");
+			Assert::AreEqual(0.0f, valueAt1, L"Missing element at index 1 should return 0.");
+			Assert::AreEqual(2.0f, valueAt3, L"Element at index 3 should be 2.");
 		}
 
 		TEST_METHOD(TestSparseVsScalarPerformance_MixedVectors)
@@ -199,11 +205,8 @@ namespace VectorTests
 
 			// Create sparse data
 			std::map<size_t, float> sparseData;
-			std::array<float, VECTOR_SIZE> scalarData1;
-			std::array<float, VECTOR_SIZE> scalarData2;
-
-			scalarData1.fill(0.0f);
-			scalarData2.fill(0.0f);
+			std::vector<float> scalarData1(VECTOR_SIZE, 0.0f);
+			std::vector<float> scalarData2(VECTOR_SIZE, 0.0f);
 
 			// Populate with 1% non-zero values at same positions
 			for (size_t i = 0; i < VECTOR_SIZE; i += SPARSITY)
@@ -276,8 +279,7 @@ namespace VectorTests
 
 			// Create sparse data
 			std::map<size_t, float> sparseData;
-			std::array<float, VECTOR_SIZE> scalarData;
-			scalarData.fill(0.0f);
+			std::vector<float> scalarData(VECTOR_SIZE, 0.0f);
 
 			// Populate with 1% non-zero values at same positions
 			for (size_t i = 0; i < VECTOR_SIZE; i += SPARSITY)
