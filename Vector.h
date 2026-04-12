@@ -6,9 +6,6 @@ class Vector
 public:
     using element_type = T;  
 
-    template<size_t NewSize>
-    using Rebind = void;   // or delete it entirely
-
     virtual float Dot(const Vector<T, N>& other) const = 0;
     virtual const T& operator[](size_t index) const = 0;
 
@@ -19,9 +16,6 @@ template <FloatOrInt T, size_t N>
 class ScalarVector : public Vector<T, N>
 {
 public:
-    template<size_t NewSize>
-    using Rebind = ScalarVector<T, NewSize>;
-
     // Default constructor
     ScalarVector()
     {
@@ -79,9 +73,6 @@ template <FloatOrInt T, size_t N>
 class SparseVector : public Vector<T, N>
 {
 public:
-    template<size_t NewSize>
-    using Rebind = SparseVector<T, NewSize>;
-
     class SparseElementProxy
     {
     public:
