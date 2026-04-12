@@ -27,47 +27,43 @@ class ScalarMatrix : public Matrix<T, M, N>
 public:
     ScalarMatrix(bool isColumnMajor = false) : Matrix<T, M, N>(isColumnMajor)
     {
-        if (isColumnMajor)
-        {
-            // If column-major, we can store the data in a single vector and calculate indices accordingly
-            m_data.resize(N, std::vector<T>(M, T{})); // Initialize a NxM matrix with default values of T
-        }
-        else
-        {
-            // If row-major, we can store the data in a single vector and calculate indices accordingly
-            m_data.resize(M, std::vector<T>(N, T{})); // Initialize a MxN matrix with default values of T
-        }
+        m_size = M * N;
+        m_data = new T[m_size](); // Allocate memory for M*N elements and initialize to default value of T
+        std::memset(m_data, 0, m_size * sizeof(T)); // Initialize all elements to zero (or default value of T)
+    }
+
+    ~ScalarMatrix()
+    {
+        delete[] m_data; // Free the allocated memory
     }
 
     void FlipStorageFormat() override
     {
         // given the current storage format, we can transpose the matrix to switch between row-major and column-major
+        T* newData = new T[m_size](); // Create a new array for the transposed data
         if (this->m_isColumnMajor)
         {
-            // If currently column-major, we need to transpose the data to row-major
-            std::vector<std::vector<T>> transposedData(M, std::vector<T>(N)); // Create a new vector for the transposed data
             for (size_t i = 0; i < N; ++i)
             {
                 for (size_t j = 0; j < M; ++j)
                 {
-                    transposedData[j][i] = (*this)(i, j); // Transpose the element
+                    newData[j * N + i] = m_data[i * M + j]; // Transpose the element
                 }
             }
-            m_data = std::move(transposedData); // Update the data with the transp
         }
         else
         {
-            // If currently row-major, we need to transpose the data to column-major
-            std::vector<std::vector<T>> transposedData(N, std::vector<T>(M)); // Create a new vector for the transposed data
             for (size_t i = 0; i < M; ++i)
             {
                 for (size_t j = 0; j < N; ++j)
                 {
-                    transposedData[j][i] = (*this)(i, j); // Transpose the element
+                    newData[j * M + i] = m_data[i * N + j]; // Transpose the element
                 }
             }
-            m_data = std::move(transposedData); // Update the data with the transposed data
         }
+
+        std::swap(m_data, newData); // Update the data with the transposed data
+        delete[] newData; // Free the temporary array
         this->m_isColumnMajor = !this->m_isColumnMajor; // Toggle the storage format flag
     }
 
@@ -85,7 +81,7 @@ public:
             T sum = T{};
             for (size_t j = 0; j < N; ++j)
             {
-                sum += (*this)(i, j) * vec[j];
+                sum += m_data[i * N + j] * vec[j];
             }
             (*result)[i] = sum;
         }
@@ -105,33 +101,23 @@ public:
             T sum = T{};
             for (size_t i = 0; i < M; ++i)
             {
-                sum += (*this)(i, j) * vec[i];
+                sum += m_data[j * M + i] * vec[i];
             }
             (*result)[j] = sum;
         }
         return result;
     }
 
+    template <size_t K>
+    std::unique_ptr<ScalarMatrix<T, M, K>> RightMultiply(const ScalarMatrix<T, N, K>& other) const
+    {
+        return nullptr;
+    }
+
 private:
-    const T& operator()(size_t row, size_t col) const
-    {
-        if (this->m_isColumnMajor)
-        {
-            return m_data[col][row]; // Accessing as column-major
-        }
-        return m_data[row][col];
-    }
-
-    T& operator()(size_t row, size_t col)
-    {
-        if (this->m_isColumnMajor)
-        {
-            return m_data[col][row]; // Accessing as column-major
-        }
-        return m_data[row][col];
-    }
-
-    std::vector<std::vector<T>> m_data{}; // 2D vector to store matrix data
+    // raw matrix data in row major format.
+    T* m_data = nullptr;
+    size_t m_size;
 };
 
 template <FloatOrInt T, size_t M, size_t N>
@@ -164,6 +150,34 @@ public:
             m_pointers.reserve(M + 1);
             BuildCSRMatrix(data, size);
         }
+    }
+
+    SparseMatrix(const ScalarMatrix<T, M, N>& matrix, bool isColumnMajor = false) : Matrix<T, M, N>(isColumnMajor)
+    {
+        m_values.clear();
+        m_indices.clear();
+        m_pointers.clear();
+
+        if (isColumnMajor)
+        {
+            m_pointers.reserve(N + 1);
+            if (matrix.isColumnMajor())
+            {
+                BuildCSCMatrixColumnMajor(matrix.m_data, M * N); // Assuming m_data is a 1D array storing the matrix data in column-major order
+            }
+            else
+            {
+                BuildCSCMatrixRowMajor(matrix.m_data, M * N); // Assuming m_data is a 1D array storing the matrix data in row-major order
+            }
+        }
+        else
+        {
+            m_pointers.reserve(M + 1);
+            BuildCSRMatrix(matrix.m_data, M * N); // Assuming m_data is a 1D array storing the matrix data
+        }
+
+        // Set the storage format based on the input matrix
+        this->m_isColumnMajor = isColumnMajor; 
     }
 
     void FlipStorageFormat() override
@@ -220,6 +234,12 @@ public:
 
     inline size_t GetNonZeroCount() const { return m_values.size(); }
 
+    template <size_t K>
+    std::unique_ptr<ScalarMatrix<T, M, K>> RightMultiply(const SparseMatrix<T, N, K>& other) const
+    {
+        return nullptr;
+    }
+
 private:
     // data is stored in row major order, so we can iterate through each row and build the CSR format
     void BuildCSRMatrix(const T* data, size_t size)
@@ -242,8 +262,27 @@ private:
         m_pointers.push_back(static_cast<uint32_t>(m_values.size())); // End of the last row
     }
 
-    // this assumes data is stored in column major order, so we can iterate through each column and build the CSC format
-    void BuildCSCMatrix(const T* data, size_t size)
+    void BuildCSCMatrixColumnMajor(const T* data, size_t size)
+    {
+        // Implementation for building a CSR (Compressed Sparse Row) matrix from the input data
+        for (size_t c = 0; c < N; ++c)
+        {
+            m_pointers.push_back(m_values.size()); // Start of the current row in values and indices
+            for (size_t r = 0; r < M; ++r)
+            {
+                T value = data[c * M + r]; // Accessing the element in column-major order
+                if (value != T{}) // Assuming T{} is the default value representing zero
+                {
+                    m_values.push_back(value); 
+                    m_indices.push_back(static_cast<uint32_t>(r));    
+                }
+            }
+        }
+        m_pointers.push_back(static_cast<uint32_t>(m_values.size())); // End of the last row
+    }
+
+    // this assumes data is stored in row major order, so we build CSC matrix.
+    void BuildCSCMatrixRowMajor(const T* data, size_t size)
     {
         m_pointers.resize(N + 1, 0); // Initialize column pointers with size N+1
 
