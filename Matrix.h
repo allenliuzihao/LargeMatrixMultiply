@@ -138,22 +138,30 @@ template <FloatOrInt T, size_t M, size_t N>
 class SparseMatrix : public Matrix<T, M, N>
 {
 public: 
-    SparseMatrix() : Matrix<T, M, N>()
+    SparseMatrix(bool isColumnMajor = false) : Matrix<T, M, N>(isColumnMajor)
     {
         m_values.clear();
         m_pointers.clear();
         m_indices.clear();
     }
 
+    // is the data in column major order or row major order, we can build the matrix accordingly
     SparseMatrix(const T* data, size_t size, bool isColumnMajor = false) : Matrix<T, M, N>(isColumnMajor)
     {
         assert(size == M * N);
+
+        m_values.clear();
+        m_indices.clear();
+        m_pointers.clear();
+
         if (isColumnMajor)
         {
+            m_pointers.reserve(N + 1);
             BuildCSCMatrix(data, size);
         }
         else
         {
+            m_pointers.reserve(M + 1);
             BuildCSRMatrix(data, size);
         }
     }
@@ -211,6 +219,7 @@ public:
     }
 
 private:
+    // data is stored in row major order, so we can iterate through each row and build the CSR format
     void BuildCSRMatrix(const T* data, size_t size)
     {
         // Implementation for building a CSR (Compressed Sparse Row) matrix from the input data
@@ -231,24 +240,48 @@ private:
         m_pointers.push_back(static_cast<uint32_t>(m_values.size())); // End of the last row
     }
 
+    // this assumes data is stored in column major order, so we can iterate through each column and build the CSC format
     void BuildCSCMatrix(const T* data, size_t size)
     {
+        m_pointers.resize(N + 1, 0); // Initialize column pointers with size N+1
+
         // Implementation for building a CSC (Compressed Sparse Column) matrix from the input data
-        // iterate each column
-        for (size_t j = 0; j < N; ++j)
+        for (size_t i = 0; i < M; ++i)
         {
-            m_pointers.push_back(m_values.size()); // Start of the current column in values and indices
-            for (size_t i = 0; i < M; ++i)
+            for (size_t j = 0; j < N; ++j)
             {
-                T value = data[i * N + j]; // Accessing the element in column-major order
+                T value = data[i * N + j]; // Accessing the element in row-major order
                 if (value != T{}) // Assuming T{} is the default value representing zero
                 {
-                    m_values.push_back(value); // Store non-zero value
-                    m_indices.push_back(static_cast<uint32_t>(i));    // Store row index of the non-zero value
+                    m_pointers[j + 1]++; // Increment the count of non-zero entries in the current column
                 }
             }
         }
-        m_pointers.push_back(static_cast<uint32_t>(m_values.size())); // End of the last column
+
+        // Compute prefix sum to get column pointers
+        for (size_t j = 1; j <= N; ++j)
+        {
+            m_pointers[j] += m_pointers[j - 1];
+        }
+
+        size_t nnz = m_pointers[N];
+        m_indices.resize(nnz);
+        m_values.resize(nnz);
+        std::vector<uint32_t> currentPosition = m_pointers; // Create a copy of column pointers to track current position in each column
+
+        for (size_t i = 0; i < M; ++i)
+        {
+            for (size_t j = 0; j < N; ++j)
+            {
+                T value = data[i * N + j]; // Accessing the element in row-major order
+                if (value != T{}) // Assuming T{} is the default value representing zero
+                {
+                    uint32_t destIndex = currentPosition[j]++; // Get the next available position in the column
+                    m_indices[destIndex] = static_cast<uint32_t>(i); // Store row index of the non-zero value
+                    m_values[destIndex] = value; // Store the non-zero value
+                }
+            }
+        }
     }
 
     void ConvertCSRtoCSC()
