@@ -243,7 +243,6 @@ private:
         }
     }
 
-    // this is slow for sparse vectors.
     void SetValue(size_t index, const T& value) 
     {
         assert(index < N);
