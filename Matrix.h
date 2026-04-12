@@ -17,6 +17,7 @@ public:
     virtual std::unique_ptr<ScalarVector<T, N>> LeftMultiply(const ScalarVector<T, M>& vec) const = 0;
     virtual std::unique_ptr<ScalarVector<T, M>> RightMultiply(const ScalarVector<T, N>& vec) const = 0;
 
+    virtual size_t TotalMemoryBytes() const = 0;
 protected:
     bool m_isColumnMajor = false;  // Default to row-major order
 };
@@ -112,6 +113,11 @@ public:
     std::unique_ptr<ScalarMatrix<T, M, K>> RightMultiply(const ScalarMatrix<T, N, K>& other) const
     {
         return nullptr;
+    }
+
+    size_t TotalMemoryBytes() const override
+    {
+        return sizeof(T) * m_size; // Memory used by the matrix data
     }
 
 private:
@@ -238,6 +244,11 @@ public:
     std::unique_ptr<ScalarMatrix<T, M, K>> RightMultiply(const SparseMatrix<T, N, K>& other) const
     {
         return nullptr;
+    }
+
+    size_t TotalMemoryBytes() const override
+    {
+        return sizeof(T) * m_values.size() + sizeof(uint32_t) * m_indices.size() + sizeof(uint32_t) * m_pointers.size(); // Memory used by the sparse matrix data
     }
 
 private:

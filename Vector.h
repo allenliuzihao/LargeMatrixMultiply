@@ -11,6 +11,8 @@ public:
 
     virtual float Dot(const Vector<T, N>& other) const = 0;
     virtual const T& operator[](size_t index) const = 0;
+
+    virtual size_t TotalMemoryBytes() const = 0;
 };
 
 template <FloatOrInt T, size_t N>
@@ -63,6 +65,12 @@ public:
         }
         return result;
     }
+
+    size_t TotalMemoryBytes() const override
+    {
+        return sizeof(m_data[0]) * m_data.size();
+    }
+
 private:
     std::array<T, N> m_data;  // Array of N elements of type T
 };
@@ -215,6 +223,12 @@ public:
     {
         return SparseElementProxy(*this, index);
     }
+
+    size_t TotalMemoryBytes() const override
+    {
+        return sizeof(size_t) * m_indices.size() + sizeof(T) * m_data.size();
+    }
+
 private:
     template <size_t Extent>
     void InitializeFromSpan(std::span<const T, Extent> data)
@@ -229,6 +243,7 @@ private:
         }
     }
 
+    // this is slow for sparse vectors.
     void SetValue(size_t index, const T& value) 
     {
         assert(index < N);
