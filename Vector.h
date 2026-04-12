@@ -11,7 +11,7 @@ public:
 
     virtual float Dot(const Vector<T, N>& other) const = 0;
     virtual const T& operator[](size_t index) const = 0;
-    virtual T& operator[](size_t index) = 0;
+    virtual void SetValue(size_t index, const T& value) = 0;
 };
 
 template <FloatOrInt T, size_t N>
@@ -48,10 +48,10 @@ public:
         return m_data[index];
     }
 
-    T& operator[](size_t index) override
+    void SetValue(size_t index, const T& value) override
     {
         assert(index < m_data.size());
-        return m_data[index];
+        m_data[index] = value;
     }
 
     float Dot(const Vector<T, N>& other) const override
@@ -172,21 +172,26 @@ public:
         return zero;
     }
 
-    T& operator[](size_t index) override
+    void SetValue(size_t index, const T& value) override
     {
         assert(index < N);
+        if (value == T{})
+        {
+            return;
+        }
+
         // Binary search on m_indices to find the index,
         //  the following returns the position where the index would be inserted if it is not found
         auto it = std::lower_bound(m_indices.begin(), m_indices.end(), index);
         if (it != m_indices.end() && *it == index)
         {
-            return m_data[std::distance(m_indices.begin(), it)];
+            m_data[std::distance(m_indices.begin(), it)] = value;
+            return;
         }
         // If not found, we need to insert a new non-zero element
         auto pos = std::distance(m_indices.begin(), it);
         m_indices.insert(it, index);  // Insert the new index in sorted order
-        m_data.insert(m_data.begin() + pos, T{});  // Insert default value for the new index
-        return m_data[pos];  // Return reference to the newly inserted element
+        m_data.insert(m_data.begin() + pos, value);  // Insert the new value for the new index
     }
 
 private:
