@@ -10,6 +10,10 @@ public:
     
     inline size_t GetNumVectors() const { return M; }
     inline size_t GetVectorSize() const { return N; }
+    inline bool IsColumnMajor() const { return m_isColumnMajor; }
+
+    virtual const T& operator()(size_t row, size_t col) const = 0;
+    virtual T& operator()(size_t row, size_t col) = 0;
 
     virtual std::unique_ptr<ScalarVector<T, M>> Multiply(const ScalarVector<T, N>& vec) const = 0;
 
@@ -21,12 +25,45 @@ template <FloatOrInt T, size_t M, size_t N>
 class ScalarMatrix : public Matrix<T, M, N>
 {
 public:
+    ScalarMatrix(bool isColumnMajor = false) : Matrix<T, M, N>(isColumnMajor)
+    {
+        if (isColumnMajor)
+        {
+            // If column-major, we can store the data in a single vector and calculate indices accordingly
+            m_data.resize(N, std::vector<T>(M, T{})); // Initialize a NxM matrix with default values of T
+        }
+        else
+        {
+            // If row-major, we can store the data in a single vector and calculate indices accordingly
+            m_data.resize(M, std::vector<T>(N, T{})); // Initialize a MxN matrix with default values of T
+        }
+    }
+
     std::unique_ptr<ScalarVector<T, M>> Multiply(const ScalarVector<T, N>& vec) const override
     {
-
+        return nullptr;
     }
-private:
 
+    const T& operator()(size_t row, size_t col) const override
+    {
+        if (this->m_isColumnMajor)
+        {
+            return m_data[col][row]; // Accessing as column-major
+        }
+        return m_data[row][col];
+    }
+
+    T& operator()(size_t row, size_t col) override
+    {
+        if (this->m_isColumnMajor)
+        {
+            return m_data[col][row]; // Accessing as column-major
+        }
+        return m_data[row][col];
+    }
+
+private:
+    std::vector<std::vector<T>> m_data{}; // 2D vector to store matrix data
 };
 
 template <FloatOrInt T, size_t M, size_t N>
