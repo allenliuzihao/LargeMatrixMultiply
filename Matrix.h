@@ -14,7 +14,7 @@ public:
 
 
     virtual void FlipStorageFormat() = 0;
-    virtual std::unique_ptr<ScalarVector<T, M>> LeftMultiply(const ScalarVector<T, N>& vec) const = 0;
+    virtual std::unique_ptr<ScalarVector<T, N>> LeftMultiply(const ScalarVector<T, M>& vec) const = 0;
     virtual std::unique_ptr<ScalarVector<T, M>> RightMultiply(const ScalarVector<T, N>& vec) const = 0;
 
 protected:
@@ -92,6 +92,26 @@ public:
         return result;
     }
 
+    std::unique_ptr<ScalarVector<T, N>> LeftMultiply(const ScalarVector<T, M>& vec) const
+    {
+        if (!this->m_isColumnMajor)
+        {
+            throw std::runtime_error("Left multiplication is not supported for row-major format. Please flip the storage format to column-major before performing left multiplication.");
+        }
+
+        std::unique_ptr<ScalarVector<T, N>> result = std::make_unique<ScalarVector<T, N>>(); // Create a result vector of size N
+        for (size_t j = 0; j < N; ++j)
+        {
+            T sum = T{};
+            for (size_t i = 0; i < M; ++i)
+            {
+                sum += (*this)(i, j) * vec[i];
+            }
+            (*result)[j] = sum;
+        }
+        return result;
+    }
+
 private:
     const T& operator()(size_t row, size_t col) const
     {
@@ -165,8 +185,26 @@ public:
             // Iterate through the non-zero entries in the current row
             for (size_t j = m_pointers[i]; j < m_pointers[i + 1]; ++j)
             {
-                uint32_t colIndex = m_indices[j];
-                (*result)[i] += m_values[j] * vec[colIndex]; // Multiply the non-zero value with the corresponding vector element and accumulate
+                (*result)[i] += m_values[j] * vec[m_indices[j]]; // Multiply the non-zero value with the corresponding vector element and accumulate
+            }
+        }
+        return result;
+    }
+
+    std::unique_ptr<ScalarVector<T, N>> LeftMultiply(const ScalarVector<T, M>& vec) const override
+    {
+        if (!this->m_isColumnMajor)
+        {
+            throw std::runtime_error("Left multiplication is not supported for row-major format. Please flip the storage format to column-major before performing left multiplication.");
+        }
+
+        std::unique_ptr<ScalarVector<T, N>> result = std::make_unique<ScalarVector<T, N>>(); // Create a result vector of size N
+        for (size_t j = 0; j < N; ++j)
+        {
+            // Iterate through the non-zero entries in the current column
+            for (size_t i = m_pointers[j]; i < m_pointers[j + 1]; ++i)
+            {
+                (*result)[j] += m_values[i] * vec[m_indices[i]]; // Multiply the non-zero value with the corresponding vector element and accumulate
             }
         }
         return result;
