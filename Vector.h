@@ -11,7 +11,6 @@ public:
 
     virtual float Dot(const Vector<T, N>& other) const = 0;
     virtual const T& operator[](size_t index) const = 0;
-    virtual T& operator[](size_t index) = 0;
 };
 
 template <FloatOrInt T, size_t N>
@@ -48,7 +47,7 @@ public:
         return m_data[index];
     }
 
-    T& operator[](size_t index) override
+    T& operator[](size_t index) 
     {
         assert(index < m_data.size());
         return m_data[index];
@@ -193,7 +192,7 @@ public:
         return zero;
     }
 
-    SparseElementProxy operator[](size_t index)
+    SparseElementProxy operator[](size_t index) 
     {
         return SparseElementProxy(*this, index);
     }
@@ -211,7 +210,7 @@ private:
         }
     }
 
-    void SetValue(size_t index, const T& value) override
+    void SetValue(size_t index, const T& value) 
     {
         assert(index < N);
         // Binary search on m_indices to find the index,
