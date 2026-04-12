@@ -108,6 +108,19 @@ public:
         InitializeFromSpan(data);
     }
 
+    SparseVector(const ScalarVector<T, N>& scalarVec)
+    {
+        for (size_t i = 0; i < N; ++i)
+        {
+            const T& v = scalarVec[i];
+            if (v != T{})
+            {
+                m_indices.push_back(i);
+                m_data.push_back(v);
+            }
+        }
+    }
+
     // For std::vector (runtime check, more flexible)
     template <size_t Extent = std::dynamic_extent>
     explicit SparseVector(std::span<const T> data) requires (Extent == std::dynamic_extent)
