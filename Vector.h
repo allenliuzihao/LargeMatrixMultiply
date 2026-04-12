@@ -11,7 +11,7 @@ public:
 
     virtual float Dot(const Vector<T, N>& other) const = 0;
     virtual const T& operator[](size_t index) const = 0;
-    virtual void SetValue(size_t index, const T& value) = 0;
+    virtual T& operator[](size_t index) = 0;
 };
 
 template <FloatOrInt T, size_t N>
@@ -48,10 +48,10 @@ public:
         return m_data[index];
     }
 
-    void SetValue(size_t index, const T& value) override
+    T& operator[](size_t index) override
     {
         assert(index < m_data.size());
-        m_data[index] = value;
+        return m_data[index];
     }
 
     float Dot(const Vector<T, N>& other) const override
@@ -74,6 +74,27 @@ class SparseVector : public Vector<T, N>
 public:
     template<size_t NewSize>
     using Rebind = SparseVector<T, NewSize>;
+
+    class SparseElementProxy
+    {
+    public:
+        SparseElementProxy(SparseVector& vec, size_t index)
+            : vec(vec), index(index)
+        {
+        }
+
+        operator T() const { return static_cast<const SparseVector&>(vec)[index]; }
+
+        SparseElementProxy& operator=(const T& value)
+        {
+            vec.SetValue(index, value);
+            return *this;
+        }
+
+    private:
+        SparseVector& vec;
+        size_t index;
+    };
 
     // Explicit default constructor
     SparseVector()
@@ -172,28 +193,10 @@ public:
         return zero;
     }
 
-    void SetValue(size_t index, const T& value) override
+    SparseElementProxy operator[](size_t index)
     {
-        assert(index < N);
-        if (value == T{})
-        {
-            return;
-        }
-
-        // Binary search on m_indices to find the index,
-        //  the following returns the position where the index would be inserted if it is not found
-        auto it = std::lower_bound(m_indices.begin(), m_indices.end(), index);
-        if (it != m_indices.end() && *it == index)
-        {
-            m_data[std::distance(m_indices.begin(), it)] = value;
-            return;
-        }
-        // If not found, we need to insert a new non-zero element
-        auto pos = std::distance(m_indices.begin(), it);
-        m_indices.insert(it, index);  // Insert the new index in sorted order
-        m_data.insert(m_data.begin() + pos, value);  // Insert the new value for the new index
+        return SparseElementProxy(*this, index);
     }
-
 private:
     template <size_t Extent>
     void InitializeFromSpan(std::span<const T, Extent> data)
@@ -206,6 +209,33 @@ private:
                 m_data.push_back(data[i]);
             }
         }
+    }
+
+    void SetValue(size_t index, const T& value) override
+    {
+        assert(index < N);
+        // Binary search on m_indices to find the index,
+        auto it = std::lower_bound(m_indices.begin(), m_indices.end(), index);
+        auto pos = std::distance(m_indices.begin(), it);
+
+        if (it != m_indices.end() && *it == index)
+        {
+            if (value == T{})
+            {
+                // If the value is zero, we need to remove it from the sparse representation if it exists
+                m_indices.erase(it);  // Remove the index
+                m_data.erase(m_data.begin() + pos);  // Remove the corresponding value
+            }
+            else
+            {
+                m_data[pos] = value; // Update the existing non-zero value
+            }
+            return;
+        }
+        
+        // If not found, we need to insert a new non-zero element
+        m_indices.insert(it, index);  // Insert the new index in sorted order
+        m_data.insert(m_data.begin() + pos, value);  // Insert the new value for the new index
     }
 
     std::vector<size_t> m_indices;

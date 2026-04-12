@@ -202,16 +202,16 @@ namespace VectorTests
 			// Accessing missing elements should return 0
 			std::map<size_t, float> data = { {0, 5.0f}, {3, 2.0f} };
 			auto vec = std::make_unique<SparseVector<float, 5>>(data);
-			SparseVector<float, 5>& v = *vec;
+            const SparseVector<float, 5>& v = *vec;
 
-			float& valueAt0 = v[0];  // Should return 5.0f
-			float& valueAt1 = v[1];  // Should return 0.0f
-			float& valueAt3 = v[3];  // Should return 2.0f
+			const float& valueAt0 = v[0];  // Should return 5.0f
+			const float& valueAt1 = v[1];  // Should return 0.0f
+			const float& valueAt3 = v[3];  // Should return 2.0f
 
 			Assert::AreEqual(5.0f, valueAt0, L"Element at index 0 should be 5.");
 			Assert::AreEqual(0.0f, valueAt1, L"Missing element at index 1 should return 0.");
 			Assert::AreEqual(2.0f, valueAt3, L"Element at index 3 should be 2.");
-
+            Assert::AreEqual(uint32_t(2), (uint32_t) vec->GetNonZeroCount(), L"Non-zero count should be 2 before inserting new element.");
 
 			// Insert new element a
 		}
