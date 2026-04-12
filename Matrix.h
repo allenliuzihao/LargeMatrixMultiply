@@ -287,29 +287,25 @@ private:
     void ConvertCSRtoCSC()
     {
         // Implementation for converting CSR format to CSC format
-        std::vector<uint32_t> colPrefix(N, 0); // Count of non-zero entries in each column
+        std::vector<uint32_t> colPrefix(N + 1, 0); // Count of non-zero entries in each column
         for (size_t i = 0; i < M; ++i)
         {
             // Iterate through the non-zero entries in the current row
             for (size_t j = m_pointers[i]; j < m_pointers[i + 1]; ++j)
             {
-                colPrefix[m_indices[j]]++;
+                colPrefix[m_indices[j] + 1]++;
             }
         }
 
         // compute prefix sum to get column pointers
-        uint32_t cumulativeCount = 0;
         for (size_t j = 0; j < N; ++j)
         {
-            uint32_t temp = colPrefix[j];
-            colPrefix[j] = cumulativeCount;
-            cumulativeCount += temp;
+            colPrefix[j + 1] += colPrefix[j];
         }
-        colPrefix.push_back(cumulativeCount);
 
         // Create new vectors for the transposed matrix
         std::vector<uint32_t> newPointers = colPrefix; // Copy the column pointers to a new vector
-        size_t numValues = m_values.size();
+        size_t numValues = colPrefix[N];
         std::vector<T> newValues(numValues); // Create a new vector for values
         std::vector<uint32_t> newIndices(numValues); // Create a new vector for indices
 
@@ -334,30 +330,26 @@ private:
     void ConvertCSCtoCSR()
     {
         // Implementation for converting CSC format to CSR format
-        std::vector<uint32_t> rowPrefix(M, 0); // Count of non-zero entries in each row
+        std::vector<uint32_t> rowPrefix(M + 1, 0); // Count of non-zero entries in each row
         // for each column, iterate through the non-zero entries and count how many entries are in each row
         for (size_t i = 0; i < N; ++i)
         {
             // Iterate through the non-zero entries in the current column
             for (size_t j = m_pointers[i]; j < m_pointers[i + 1]; ++j)
             {
-                rowPrefix[m_indices[j]]++;
+                rowPrefix[m_indices[j] + 1]++;
             }
         }
 
         // compute prefix sum to get column pointers
-        uint32_t cumulativeCount = 0;
-        for (size_t j = 0; j < M; ++j)
+        for (size_t i = 0; i < M; ++i)
         {
-            uint32_t temp = rowPrefix[j];
-            rowPrefix[j] = cumulativeCount;
-            cumulativeCount += temp;
+            rowPrefix[i + 1] += rowPrefix[i];
         }
-        rowPrefix.push_back(cumulativeCount);
 
         // Create new vectors for the transposed matrix
         std::vector<uint32_t> newPointers = rowPrefix; // Copy the row pointers to a new vector
-        size_t numValues = m_values.size();
+        size_t numValues = rowPrefix[M];
         std::vector<T> newValues(numValues); // Create a new vector for values
         std::vector<uint32_t> newIndices(numValues); // Create a new vector for indices
 
