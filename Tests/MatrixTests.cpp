@@ -8,6 +8,22 @@ namespace MatrixTests
 {
     TEST_CLASS(SparseMatrixTests)
     {
+    private:
+        template <size_t M, size_t N>
+        void CheckMatrixEqual(const ScalarMatrix<float, M, N>& before, const ScalarMatrix<float, M, N>& after)
+        {
+            Assert::AreEqual(before.IsColumnMajor(), after.IsColumnMajor(), L"Storage format mismatch");
+            for (size_t i = 0; i < M; ++i)
+            {
+                for (size_t j = 0; j < N; ++j)
+                {
+                    float b = before.GetElement(i, j);
+                    float a = after.GetElement(i, j);
+                    Assert::AreEqual((double)b, (double)a, 1e-6, L"CSR<->CSC data mismatch");
+                }
+            }
+        }
+
     public:
         TEST_METHOD(TestScalarMatrixCreation_Default)
         {
@@ -15,6 +31,66 @@ namespace MatrixTests
             auto matrix = std::make_unique<ScalarMatrix<float, 3, 4>>();
             Assert::IsNotNull(matrix.get(), L"Matrix should be created successfully.");
             Assert::AreEqual(false, matrix->IsColumnMajor(), L"Default storage format should be row-major.");
+        }
+
+        TEST_METHOD(TestSparseCSRCSCConversionPreservesData)
+        {
+            // small deterministic matrix to validate CSR <-> CSC conversions
+            constexpr size_t M = 7, N = 9;
+            std::vector<float> data(M * N, 0.0f);
+            // set a reproducible pattern
+            for (size_t i = 0; i < M; ++i)
+                for (size_t j = 0; j < N; ++j)
+                    if (((i * 31 + j * 17) % 5) == 0) data[i * N + j] = static_cast<float>((i + j) % 10 + 1);
+
+            // build CSR sparse matrix from row-major data
+            auto csr = std::make_unique<SparseMatrix<float, M, N>>(data.data(), data.size(), /*isColumnMajor=*/false);
+            auto before = csr->ToDense();
+
+            // convert to CSC and back
+            csr->FlipStorageFormat(); // now CSC
+            csr->FlipStorageFormat(); // back to CSR
+            auto after = csr->ToDense();
+            Assert::AreEqual(before->TotalMemoryBytes(), after->TotalMemoryBytes(), L"CSR->CSC->CSR size mismatch");
+
+            // check if matrices before and after are approximately equal (allowing for floating point precision issues)
+            CheckMatrixEqual(*before, *after);
+                
+            // also verify constructing directly as CSC (from column-major buffer) yields same row-major export
+            std::vector<float> colData(M * N);
+            for (size_t r = 0; r < M; ++r)
+                for (size_t c = 0; c < N; ++c)
+                    colData[c * M + r] = data[r * N + c];
+
+            auto csc = std::make_unique<SparseMatrix<float, M, N>>(colData.data(), colData.size(), /*isColumnMajor=*/true);
+            csc->FlipStorageFormat();
+            after = csc->ToDense();
+            CheckMatrixEqual(*before, *after);
+        }
+
+        TEST_METHOD(TestSparseDenseConversionPreservesData)
+        {
+            // validate constructing sparse from dense ScalarMatrix and back preserves data
+            constexpr size_t M = 6, N = 8;
+            ScalarMatrix<float, M, N> dense(false);
+            // populate dense with a pattern
+            for (size_t i = 0; i < M; ++i)
+                for (size_t j = 0; j < N; ++j)
+                {
+                    float v = (((int)i * 7 + (int)j * 13) % 6 == 0) ? static_cast<float>((i + j) % 9 + 1) : 0.0f;
+                    dense.SetElement(i, j, v);
+                }
+
+            // build sparse CSR from dense
+            auto sparseFromDense = std::make_unique<SparseMatrix<float, M, N>>(dense, /*isColumnMajor=*/false);
+            auto sparseAsRow = sparseFromDense->ToDense();
+            CheckMatrixEqual(dense, *sparseAsRow);
+
+            // build sparse CSC from dense (column-major) and verify
+            auto sparseFromDenseCSC = std::make_unique<SparseMatrix<float, M, N>>(dense, /*isColumnMajor=*/true);
+            auto sparseCSCAsRow = sparseFromDenseCSC->ToDense();
+            dense.FlipStorageFormat(); // flip dense to column-major for comparison
+            CheckMatrixEqual(dense, *sparseCSCAsRow);
         }
 
         TEST_METHOD(TestMatrixMatrixRightMultiply_Correctness)

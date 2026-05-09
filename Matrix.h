@@ -461,9 +461,9 @@ public:
         return zero;
     }
 
-    ScalarMatrix<T, M, N> ToDense() const
+    std::unique_ptr<ScalarMatrix<T, M, N>> ToDense() const
     {
-        ScalarMatrix<T, M, N> denseMatrix(this->m_isColumnMajor); // Create a dense matrix with the same storage format
+        std::unique_ptr<ScalarMatrix<T, M, N>> denseMatrix = std::make_unique<ScalarMatrix<T, M, N>>(this->m_isColumnMajor); // Create a dense matrix with the same storage format
         
         if (this->m_isColumnMajor)
         {
@@ -472,7 +472,7 @@ public:
                 for (size_t i = m_pointers[j]; i < m_pointers[j + 1]; ++i)
                 {
                     size_t rowIndex = m_indices[i];
-                    denseMatrix.SetElement(rowIndex, j, m_values[i]);
+                    denseMatrix->SetElement(rowIndex, j, m_values[i]);
                 }
             }
         }
@@ -483,7 +483,7 @@ public:
                 for (size_t j = m_pointers[i]; j < m_pointers[i + 1]; ++j)
                 {
                     size_t colIndex = m_indices[j];
-                    denseMatrix.SetElement(i, colIndex, m_values[j]);
+                    denseMatrix->SetElement(i, colIndex, m_values[j]);
                 }
             }
         }
@@ -499,7 +499,7 @@ private:
         // iterate each row
         for (size_t i = 0; i < M; ++i)
         {
-            m_pointers.push_back(m_values.size()); // Start of the current row in values and indices
+            m_pointers.push_back(static_cast<uint32_t>(m_values.size())); // Start of the current row in values and indices
             for (size_t j = 0; j < N; ++j)
             {
                 T value = data[i * N + j]; // Accessing the element in row-major order
@@ -518,7 +518,7 @@ private:
         // Implementation for building a CSR (Compressed Sparse Row) matrix from the input data
         for (size_t c = 0; c < N; ++c)
         {
-            m_pointers.push_back(m_values.size()); // Start of the current row in values and indices
+            m_pointers.push_back(static_cast<uint32_t>(m_values.size())); // Start of the current row in values and indices
             for (size_t r = 0; r < M; ++r)
             {
                 T value = data[c * M + r]; // Accessing the element in column-major order
