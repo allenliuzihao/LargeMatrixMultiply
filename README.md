@@ -1,104 +1,134 @@
-# Large Matrix Multiply
+# LargeMatrixMultiply
 
-A high-performance C++ application for matrix multiplication operations, designed for deep learning and graphics computations.
+A small, focused C++ project implementing matrix and vector primitives and unit tests used by the DeepLearningGraphics suite.
 
-## Overview
+## Project summary
 
-This project implements efficient large-scale matrix multiplication algorithms using sparse matrix formats including CSC and CSR. The implementation is part of the DeepLearningGraphics project suite and provides foundational operations for matrix computations in scientific computing and machine learning applications.
+This repository contains native C++ implementations for matrix and vector operations used for large-scale numerical work. The code is organized as a Visual Studio project and includes a small unit-test project under `Tests/`.
+
+Key source files:
+
+- `Matrix.cpp`, `Matrix.h` — matrix operations and helpers
+- `Vector.cpp`, `Vector.h` — vector utilities
+- `Utilities.cpp`, `Utilities.h` — supporting utilities and helpers
+- `Tests/` — unit tests (GoogleTest or custom test harness via Visual Studio Test project)
 
 ## Requirements
 
-- **Windows 10 or later**
-- **Visual Studio 2022** (with MSVC v145 toolset)
-- **C++20 standard or later**
+- Windows 10 or later
+- Visual Studio 2019/2022 with C++ workload (MSVC)
+- C++20 (project configured for modern MSVC toolset)
 
-## Supported Platforms
+The project is configured as a Visual Studio solution (`LargeMatrixMultiply.slnx`) and uses the MSVC toolchain. Precompiled headers are used (see `pch.h` / `pch.cpp`).
 
-- Win32 (x86)
-- x64 (AMD64)
+## Build
 
-## Build Instructions
+### Visual Studio
 
-### Using Visual Studio 2022
+1. Open `LargeMatrixMultiply.slnx` in Visual Studio.
+2. Select configuration (`Debug` or `Release`) and platform (`x64` recommended).
+3. Build the solution (Build > Build Solution or Ctrl+Shift+B).
 
-1. Open `LargeMatrixMultiply.slnx` in Visual Studio 2022
-2. Select your desired configuration:
-   - **Debug**: For development and debugging with full debug information
-   - **Release**: For optimized builds with whole program optimization
-3. Select your target platform:
-   - **Win32**: 32-bit x86 architecture
-   - **x64**: 64-bit AMD64 architecture
-4. Build the project using **Build > Build Solution** (Ctrl+Shift+B)
+### Command line (MSBuild)
 
-### Command Line Build
+To build from a Developer Command Prompt or PowerShell with MSBuild available:
 
-```bash
-# Build Release x64
-msbuild LargeMatrixMultiply.vcxproj /p:Configuration=Release /p:Platform=x64
+```powershell
+# Build the main project (Release x64)
+msbuild LargeMatrixMultiply.slnx /p:Configuration=Release /p:Platform=x64
 
-# Build Debug x64
-msbuild LargeMatrixMultiply.vcxproj /p:Configuration=Debug /p:Platform=x64
+# Build the tests project (Debug x64)
+msbuild Tests\Tests.vcxproj /p:Configuration=Debug /p:Platform=x64
 ```
 
-## Project Structure
+## Running tests
 
+Recommended: use Visual Studio Test Explorer to run and debug tests in the `Tests` project.
+
+Command-line options after building:
+
+1. Locate the test binary (the project output folder under `Tests\x64\Debug` or the solution's output directory).
+2. Run with `vstest.console.exe` (for .dll test assemblies) or execute the produced test binary directly:
+
+```powershell
+# Example (adjust path to actual test output):
+vstest.console.exe .\Tests\x64\Debug\Tests.dll
+# Or run native exe if produced:
+.\Tests\x64\Debug\Tests.exe
 ```
-LargeMatrixMultiply/
-├── LargeMatrixMultiply.slnx        # Visual Studio solution
-├── LargeMatrixMultiply.vcxproj     # Project configuration
-├── LargeMatrixMultiply.vcxproj.filters
-├── README.md
-└── Source files (to be added)
-```
 
-## Features
+If you prefer, simply open the solution in Visual Studio and run all tests via Test Explorer.
 
-- **High-Performance**: Optimized for modern multi-core CPU architectures
-- **Scalable**: Efficient handling of large matrices
-- **Cross-Platform Support**: Both 32-bit and 64-bit builds
-- **Modern C++**: Utilizes C++20 features and standards
+## Notes and best practices
 
-## Build Configuration Details
+- Large heap allocations: prefer `std::vector` (or other heap containers) for large temporary arrays rather than large stack allocations. This project uses heap allocation patterns to avoid stack overflows for big matrices (see project guidance in `.github/copilot-instructions.md`).
+- The code uses precompiled headers for faster builds. If you add new translation units, include `pch.h` as the first include where appropriate.
+- Target `x64` for large-matrix scenarios to avoid 32-bit address-space limits.
 
-### Common Compiler Options
+## Sparsity representation
 
-- **Language Standard**: C++20
-- **Character Set**: Unicode
-- **Console Application**: Targets Windows console subsystem
-- **Security**: SDL (Security Development Lifecycle) checks enabled
+This codebase provides sparse storage for both matrices and vectors. The on-disk/in-memory layouts used by the classes are:
 
-### Compiler Warnings
+- SparseMatrix (CSR / CSC):
+	- Stored using three arrays: `m_values` (non-zero values), `m_indices` (row or column indices), and `m_pointers` (offsets into the previous two arrays).
+	- When the matrix is row-major (CSR): `m_pointers` has length `M+1` and each row i's non-zero elements are in the range `[m_pointers[i], m_pointers[i+1])`. `m_indices` stores column indices for those values.
+	- When the matrix is column-major (CSC): `m_pointers` has length `N+1` and each column j's non-zero elements are in the range `[m_pointers[j], m_pointers[j+1])`. `m_indices` stores row indices for those values.
+	- The implementation keeps indices sorted within each row/column, uses binary search for element lookup, and updates `m_pointers` when inserting or removing non-zero entries.
+	- Conversion helpers are provided (`ConvertCSRtoCSC()` / `ConvertCSCtoCSR()`) to flip between CSR and CSC representations.
+	- Dense ↔ sparse conversion helpers are available (`ToDense()` and constructors that accept dense arrays).
 
-- Warning Level: Level 3 (detects most potential issues)
+- SparseVector:
+	- Stored using two arrays: `m_indices` (sorted indices of non-zero elements) and `m_data` (corresponding non-zero values).
+	- Element access uses binary search on `m_indices` and returns `T{}` when an index is not present.
+	- Dot-products are implemented efficiently:
+		- Sparse × sparse: two-pointer merge-style iteration over `m_indices`.
+		- Sparse × dense: iterate non-zero entries of the sparse vector and sample the dense vector at those indices.
 
-### Optimization Flags
+Notes:
 
-- **Release Build**: 
-  - Whole Program Optimization (WPO)
-  - Function-Level Linking
-  - Intrinsic Functions enabled
+- The project treats `T{}` (the default value for the element type) as the logical "zero" and stores only values != `T{}` in sparse containers.
+- See the implementations for details and exact APIs in `Matrix.h` and `Vector.h`.
 
-## Usage
+## Sparse operations: matrix-vector and matrix-matrix
 
-[Add usage instructions and examples here once implementation is complete]
+Matrix-vector and matrix-matrix products are implemented to exploit the CSR/CSC and sparse-vector layouts efficiently:
+
+- Matrix × Vector (sparse matrix):
+	- CSR (row-major) uses `RightMultiply(const ScalarVector&)` / `RightMultiply(const SparseVector&)` semantics: for each row i iterate indices `j` in `[m_pointers[i], m_pointers[i+1])` and accumulate `m_values[j] * vec[m_indices[j]]` into `result[i]`.
+	- CSC (column-major) uses `LeftMultiply(const ScalarVector&)` semantics: for each column j iterate indices `i` in `[m_pointers[j], m_pointers[j+1])` and accumulate `m_values[i] * vec[m_indices[i]]` into `result[j]` (or into destination rows when multiplying from the left).
+	- Complexity: O(nnz) where nnz is the number of stored non-zero values.
+
+- Matrix × Vector (sparse vector):
+	- The `SparseVector` stores `(m_indices, m_data)` with `m_indices` sorted. Element access is binary-search based, and dot products use a two-pointer merge when both operands are sparse, otherwise the sparse operand iterates its non-zero entries and samples the dense vector.
+
+- Matrix × Matrix:
+	- The code expects one operand to be in CSR (row-major) and the other in CSC (column-major) for the most efficient multiply paths. Concretely, `SparseMatrix::RightMultiply(const ScalarMatrix& other)` requires `this` to be row-major and `other` to be column-major — this lets the implementation iterate a row of `A` and a column of `B` without scanning full rows/columns.
+	- Sparse × Dense: for each row of the sparse matrix, iterate its non-zero entries and multiply-accumulate against the corresponding (dense) column entries of the other matrix (stored column-major for cache-friendly access). Complexity roughly O(nnz * K) for producing an M×K result.
+	- Sparse × Sparse: when both matrices are sparse and stored in the appropriate complementary formats, the implementation performs a two-pointer merge between the sorted index lists of a row (from CSR) and a column (from CSC) to find matching indices and accumulate products. This avoids hashing or random lookups and runs in time proportional to the sum of degrees of the involved row/column pairs.
+	- The code also implements `RightMultiply(const SparseMatrix&)` which uses the two-pointer technique to multiply matching non-zero index lists and store the summed result into the dense result buffer (a `ScalarMatrix`), as a simple, robust approach.
+
+Notes and trade-offs:
+
+- Requiring one operand in CSR and the other in CSC minimizes random memory access: rows of A are contiguous slices of `m_values`/`m_indices` and columns of B are contiguous slices when stored CSC.
+- Converting between CSR and CSC (via `ConvertCSRtoCSC()` / `ConvertCSCtoCSR()`) is supported but incurs O(nnz) work and temporary memory; avoid repeated conversions in hot code paths.
+- For very large, highly-sparse matrices, consider algorithms that produce sparse outputs directly (assembly into CSR/CSC) instead of materializing dense intermediate results.
+
+See `Matrix.h` and `Vector.h` for the exact method names and implementations used (`RightMultiply`, `LeftMultiply`, two-pointer merge, etc.).
 
 ## Contributing
 
-Guidelines for contributing to this project:
-
-1. Ensure code follows modern C++ best practices
-2. Maintain C++20 standard compatibility
-3. Test on both Win32 and x64 platforms
-4. Build with both Debug and Release configurations
+- Follow the existing code style (modern C++, avoid macros where possible).
+- Add unit tests to `Tests/` for any new functionality.
+- Run both `Debug` and `Release` builds when validating changes.
 
 ## License
 
-[Add license information here]
+This repository includes a `LICENSE.txt` file — see it for license details.
 
 ## Contact
 
-Part of the DeepLearningGraphics project suite.
+Part of the DeepLearningGraphics project suite. For questions, open an issue or contact the maintainers listed in the repository metadata.
 
 ---
 
-**Note**: This README will be updated as the project develops and implementation details become available.
+This README was updated to add build and test instructions, file references, and practical notes for working on the project.
