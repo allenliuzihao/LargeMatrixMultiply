@@ -18,8 +18,15 @@ public:
     virtual std::unique_ptr<ScalarVector<T, M>> RightMultiply(const ScalarVector<T, N>& vec) const = 0;
 
     virtual size_t TotalMemoryBytes() const = 0;
+
+    virtual void SetElement(size_t row, size_t col, T value) = 0;
+    virtual T GetElement(size_t row, size_t col) const = 0;
+
 protected:
-    bool m_isColumnMajor = false;  // Default to row-major order
+    bool m_isColumnMajor = false;  // Default to row-major 
+
+    template <FloatOrInt, size_t, size_t>
+    friend class Matrix;
 };
 
 template <FloatOrInt T, size_t M, size_t N>
@@ -68,6 +75,30 @@ public:
         this->m_isColumnMajor = !this->m_isColumnMajor; // Toggle the storage format flag
     }
 
+    void SetElement(size_t row, size_t col, T value) override
+    {
+        if (this->m_isColumnMajor)
+        {
+            m_data[col * M + row] = value;
+        }
+        else
+        {
+            m_data[row * N + col] = value;
+        }
+    }
+
+    T GetElement(size_t row, size_t col) const override
+    {
+        if (this->m_isColumnMajor)
+        {
+            return m_data[col * M + row];
+        }
+        else
+        {
+            return m_data[row * N + col];
+        }
+    }
+
     std::unique_ptr<ScalarVector<T, M>> RightMultiply(const ScalarVector<T, N>& vec) const override
     {
         if (this->m_isColumnMajor)
@@ -112,7 +143,7 @@ public:
     template <size_t K>
     std::unique_ptr<ScalarMatrix<T, M, K>> RightMultiply(const ScalarMatrix<T, N, K>& other) const 
     {
-        if (this->m_isColumnMajor || !other.m_isColumnMajor)
+        if (this->m_isColumnMajor || !other.IsColumnMajor())
         {
             throw std::runtime_error("Matrix multiplication requires this to be row-major and the other to be column-major.");
         }
@@ -144,6 +175,12 @@ private:
     // raw matrix data in row major format.
     T* m_data = nullptr;
     size_t m_size;
+
+    template <FloatOrInt, size_t, size_t>
+    friend class ScalarMatrix;
+
+    template <FloatOrInt, size_t, size_t>
+    friend class SparseMatrix;
 };
 
 template <FloatOrInt T, size_t M, size_t N>
@@ -187,7 +224,7 @@ public:
         if (isColumnMajor)
         {
             m_pointers.reserve(N + 1);
-            if (matrix.isColumnMajor())
+            if (matrix.IsColumnMajor())
             {
                 BuildCSCMatrixColumnMajor(matrix.m_data, matrix.m_size); // Assuming m_data is a 1D array storing the matrix data in column-major order
             }
@@ -263,7 +300,7 @@ public:
     template <size_t K>
     std::unique_ptr<ScalarMatrix<T, M, K>> RightMultiply(const ScalarMatrix<T, N, K>& other) const 
     {
-        if (this->m_isColumnMajor || !other.m_isColumnMajor)
+        if (this->m_isColumnMajor || !other.IsColumnMajor())
         {
             throw std::runtime_error("Matrix multiplication requires this to be row-major and the other to be column-major.");
         }
@@ -334,6 +371,124 @@ public:
     size_t TotalMemoryBytes() const override
     {
         return sizeof(T) * m_values.size() + sizeof(uint32_t) * m_indices.size() + sizeof(uint32_t) * m_pointers.size(); // Memory used by the sparse matrix data
+    }
+
+    void SetElement(size_t row, size_t col, T value) override
+    {
+        size_t start, end;
+        uint32_t index;
+
+        if (this->m_isColumnMajor)
+        {
+            start = m_pointers[col];
+            end = m_pointers[col + 1];
+            index = uint32_t(row);
+        }
+        else
+        {
+            start = m_pointers[row];
+            end = m_pointers[row + 1];
+            index = uint32_t(col);
+        }
+
+        // Binary search on m_indices to find the index,
+        auto beginIt = m_indices.begin() + start;
+        auto endIt = m_indices.begin() + end;
+        auto it = std::lower_bound(beginIt, endIt, index);
+        auto pos = std::distance(m_indices.begin(), it);
+
+        if (it != endIt && *it == index)
+        {
+            if (value == T{})
+            {
+                // If the value is zero, we need to remove it from the sparse representation if it exists
+                m_indices.erase(it);  // Remove the index
+                m_values.erase(m_values.begin() + pos);  // Remove the corresponding value
+                // Decrement the pointers for subsequent rows/columns to account for the removed non-zero entry
+                for (size_t i = (this->m_isColumnMajor ? col + 1 : row + 1); i < m_pointers.size(); ++i)
+                {
+                    m_pointers[i]--; 
+                }
+            }
+            else
+            {
+                m_values[pos] = value; // Update the existing non-zero value
+            }
+            return;
+        }
+
+        // If not found, we need to insert a new non-zero element
+        m_indices.insert(it, index);  // Insert the new index in sorted order
+        m_values.insert(m_values.begin() + pos, value);  // Insert the new value for the new index
+
+        // Increment the pointers for subsequent rows/columns to account for the new non-zero entry
+        for (size_t i = (this->m_isColumnMajor ? col + 1 : row + 1); i < m_pointers.size(); ++i)
+        {
+            m_pointers[i]++; 
+        }
+    }
+
+    T GetElement(size_t row, size_t col) const override
+    {
+        size_t start, end;
+        uint32_t index;
+
+        if (this->m_isColumnMajor)
+        {
+            start = m_pointers[col];
+            end = m_pointers[col + 1];
+            index = uint32_t(row);
+        }
+        else
+        {
+            start = m_pointers[row];
+            end = m_pointers[row + 1];
+            index = uint32_t(col);
+        }
+
+        // search in the current row
+        auto beginIt = m_indices.begin() + start;
+        auto endIt = m_indices.begin() + end;
+        auto it = std::lower_bound(beginIt, endIt, index);
+        if (it != endIt && *it == index)
+        {
+            size_t pos = std::distance(m_indices.begin(), it);
+            return m_values[pos];
+        }
+
+        // Return default value if not found
+        static const T zero = T{};
+        return zero;
+    }
+
+    ScalarMatrix<T, M, N> ToDense() const
+    {
+        ScalarMatrix<T, M, N> denseMatrix(this->m_isColumnMajor); // Create a dense matrix with the same storage format
+        
+        if (this->m_isColumnMajor)
+        {
+            for (size_t j = 0; j < N; ++j)
+            {
+                for (size_t i = m_pointers[j]; i < m_pointers[j + 1]; ++i)
+                {
+                    size_t rowIndex = m_indices[i];
+                    denseMatrix.SetElement(rowIndex, j, m_values[i]);
+                }
+            }
+        }
+        else
+        {
+            for (size_t i = 0; i < M; ++i)
+            {
+                for (size_t j = m_pointers[i]; j < m_pointers[i + 1]; ++j)
+                {
+                    size_t colIndex = m_indices[j];
+                    denseMatrix.SetElement(i, colIndex, m_values[j]);
+                }
+            }
+        }
+
+        return denseMatrix;
     }
 
 private:
@@ -507,6 +662,9 @@ private:
         std::swap(m_indices, newIndices); // Update the indices to the new indices
         std::swap(m_pointers, newPointers); // Update the pointers to the new column pointers
     }
+
+    template <FloatOrInt, size_t, size_t>
+    friend class SparseMatrix;
 
     std::vector<T> m_values{};
     std::vector<uint32_t> m_pointers{};

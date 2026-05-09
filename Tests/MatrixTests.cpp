@@ -17,6 +17,125 @@ namespace MatrixTests
             Assert::AreEqual(false, matrix->IsColumnMajor(), L"Default storage format should be row-major.");
         }
 
+        TEST_METHOD(TestMatrixMatrixRightMultiply_Correctness)
+        {
+            // Small sizes to validate correctness of matrix-matrix RightMultiply overloads
+            constexpr size_t M = 10, N = 12, K = 8;
+            std::vector<float> Adata(M * N, 0.0f);
+            std::vector<float> Bdata(N * K, 0.0f);
+
+            // deterministic values
+            for (size_t i = 0; i < M; ++i)
+                for (size_t j = 0; j < N; ++j)
+                    Adata[i * N + j] = static_cast<float>((i + 1) * (j + 2) % 7 + 1);
+
+            for (size_t i = 0; i < N; ++i)
+                for (size_t j = 0; j < K; ++j)
+                    Bdata[i * K + j] = static_cast<float>((i + 3) * (j + 5) % 11 + 1);
+
+            // reference dense multiplication (row-major arrays)
+            std::vector<float> ref(M * K, 0.0f);
+            for (size_t i = 0; i < M; ++i)
+                for (size_t k = 0; k < K; ++k)
+                {
+                    float s = 0.0f;
+                    for (size_t n = 0; n < N; ++n) s += Adata[i * N + n] * Bdata[n * K + k];
+                    ref[i * K + k] = s;
+                }
+
+            // Scalar * Scalar (A row-major, B column-major)
+            ScalarMatrix<float, M, N> Arow(false);
+            ScalarMatrix<float, N, K> Bcol(true);
+            for (size_t i = 0; i < M; ++i)
+                for (size_t j = 0; j < N; ++j)
+                    Arow.SetElement(i, j, Adata[i * N + j]);
+            for (size_t i = 0; i < N; ++i)
+                for (size_t j = 0; j < K; ++j)
+                    Bcol.SetElement(i, j, Bdata[i * K + j]);
+
+            auto denseRes = Arow.RightMultiply(Bcol);
+            for (size_t i = 0; i < M; ++i)
+                for (size_t k = 0; k < K; ++k)
+                    Assert::AreEqual((double)ref[i * K + k], (double)(*denseRes).GetElement(i, k), 1e-4, L"ScalarMatrix x ScalarMatrix result mismatch");
+
+            // Sparse (CSR) A * Scalar (B column-major)
+            auto sparseA = std::make_unique<SparseMatrix<float, M, N>>(Adata.data(), Adata.size(), /*isColumnMajor=*/false);
+            auto sparseDenseRes = sparseA->RightMultiply(Bcol);
+            for (size_t i = 0; i < M; ++i)
+                for (size_t k = 0; k < K; ++k)
+                    Assert::AreEqual((double)ref[i * K + k], (double)sparseDenseRes->GetElement(i, k), 1e-4, L"SparseMatrix x ScalarMatrix result mismatch");
+
+            // Sparse * Sparse (A CSR, B CSC)
+            // build column-major buffer for B
+            std::vector<float> BcolData(N * K);
+            for (size_t r = 0; r < N; ++r)
+                for (size_t c = 0; c < K; ++c)
+                    BcolData[c * N + r] = Bdata[r * K + c];
+
+            auto sparseB = std::make_unique<SparseMatrix<float, N, K>>(BcolData.data(), BcolData.size(), /*isColumnMajor=*/true);
+            auto sparseSparseRes = sparseA->RightMultiply(*sparseB);
+            for (size_t i = 0; i < M; ++i)
+                for (size_t k = 0; k < K; ++k)
+                    Assert::AreEqual((double)ref[i * K + k], (double)sparseSparseRes->GetElement(i, k), 1e-4, L"SparseMatrix x SparseMatrix result mismatch");
+        }
+
+        TEST_METHOD(TestMatrixMatrixRightMultiply_Performance)
+        {
+            // compare performance of ScalarMatrix x ScalarMatrix vs SparseMatrix x SparseMatrix
+            constexpr size_t M = 512, N = 512, K = 512;
+            const double sparsity = 0.05; // 5% non-zero
+
+            std::mt19937 rng(2026);
+            std::bernoulli_distribution keep(sparsity);
+            std::uniform_real_distribution<float> valDist(1.0f, 5.0f);
+
+            std::vector<float> Adata(M * N, 0.0f);
+            std::vector<float> Bdata(N * K, 0.0f);
+            for (size_t i = 0; i < M; ++i)
+                for (size_t j = 0; j < N; ++j)
+                    if (keep(rng)) Adata[i * N + j] = valDist(rng);
+            for (size_t i = 0; i < N; ++i)
+                for (size_t j = 0; j < K; ++j)
+                    if (keep(rng)) Bdata[i * K + j] = valDist(rng);
+
+            // build scalar matrices
+            ScalarMatrix<float, M, N> Arow(false);
+            ScalarMatrix<float, N, K> Bcol(true);
+            for (size_t i = 0; i < M; ++i)
+                for (size_t j = 0; j < N; ++j)
+                    Arow.SetElement(i, j, Adata[i * N + j]);
+            for (size_t i = 0; i < N; ++i)
+                for (size_t j = 0; j < K; ++j)
+                    Bcol.SetElement(i, j, Bdata[i * K + j]);
+
+            // time dense scalar x scalar
+            auto t0 = std::chrono::high_resolution_clock::now();
+            auto denseRes = Arow.RightMultiply(Bcol);
+            auto t1 = std::chrono::high_resolution_clock::now();
+
+            // build A as row major sparse matrices
+            auto sparseA = std::make_unique<SparseMatrix<float, M, N>>(Arow, /*isColumnMajor=*/false);
+            // build B as column-major sparse matrices
+            auto sparseB = std::make_unique<SparseMatrix<float, N, K>>(Bcol, /*isColumnMajor=*/true);
+
+            auto t2 = std::chrono::high_resolution_clock::now();
+            auto sparseRes = sparseA->RightMultiply(*sparseB);
+            auto t3 = std::chrono::high_resolution_clock::now();
+
+            auto denseMs = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+            auto sparseMs = std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t2).count();
+
+            // verify equality of results
+            for (size_t i = 0; i < M; ++i)
+                for (size_t k = 0; k < K; ++k)
+                    Assert::AreEqual((double)denseRes->GetElement(i, k), (double)sparseRes->GetElement(i, k), 1e-3, L"Matrix-matrix multiply result mismatch");
+
+            Logger::WriteMessage(("Dense matrix-matrix ms: " + std::to_string(denseMs) + "\n").c_str());
+            Logger::WriteMessage(("Sparse matrix-matrix ms: " + std::to_string(sparseMs) + "\n").c_str());
+
+            Assert::IsTrue(sparseMs < denseMs, L"Sparse matrix-matrix multiply should be faster than dense for 30% sparsity in this test.");
+        }
+
         TEST_METHOD(TestLargeSparseLeftRightFormatConversion)
         {
             // large matrix with 30% non-zero entries
