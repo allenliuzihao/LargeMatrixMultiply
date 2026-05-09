@@ -4,7 +4,7 @@ A high-performance C++ application for matrix multiplication operations, designe
 
 ## Overview
 
-This project implements efficient large-scale matrix multiplication algorithms optimized for modern multi-core processors. The implementation is part of the DeepLearningGraphics project suite and provides foundational operations for matrix computations in scientific computing and machine learning applications.
+This project implements efficient large-scale matrix multiplication algorithms using sparse matrix formats including CSC and CSR. The implementation is part of the DeepLearningGraphics project suite and provides foundational operations for matrix computations in scientific computing and machine learning applications.
 
 ## Requirements
 
