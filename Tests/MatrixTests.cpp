@@ -17,7 +17,7 @@ namespace MatrixTests
             Assert::AreEqual(false, matrix->IsColumnMajor(), L"Default storage format should be row-major.");
         }
 
-        TEST_METHOD(TestLargeSparseLeftRightSpeedup_30PercentSparsity)
+        TEST_METHOD(TestLargeSparseLeftRightFormatConversion)
         {
             // large matrix with 30% non-zero entries
             constexpr size_t M = 2000, N = 2000; // large but reasonable for CI on modern machines
