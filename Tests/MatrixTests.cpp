@@ -49,7 +49,9 @@ namespace MatrixTests
 
             // convert to CSC and back
             csr->FlipStorageFormat(); // now CSC
+            Assert::IsTrue(csr->IsColumnMajor(), L"Matrix should be in column-major format after flip");
             csr->FlipStorageFormat(); // back to CSR
+            Assert::IsFalse(csr->IsColumnMajor(), L"Matrix should be in row-major format after second flip");
             auto after = csr->ToDense();
             Assert::AreEqual(before->TotalMemoryBytes(), after->TotalMemoryBytes(), L"CSR->CSC->CSR size mismatch");
 
@@ -91,6 +93,9 @@ namespace MatrixTests
             auto sparseCSCAsRow = sparseFromDenseCSC->ToDense();
             dense.FlipStorageFormat(); // flip dense to column-major for comparison
             CheckMatrixEqual(dense, *sparseCSCAsRow);
+
+            Assert::IsTrue(sparseFromDenseCSC->IsColumnMajor(), L"Sparse matrix should be in column-major format");
+            Assert::IsTrue(dense.IsColumnMajor(), L"Sparse matrix should be in column-major format");
         }
 
         TEST_METHOD(TestMatrixMatrixRightMultiply_Correctness)
