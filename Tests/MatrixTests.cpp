@@ -25,12 +25,174 @@ namespace MatrixTests
             auto matrix = std::make_unique<SparseMatrix<float, 3, 4>>();
             Assert::IsNotNull(matrix.get(), L"Sparse matrix should be created successfully.");
             Assert::AreEqual(false, matrix->IsColumnMajor(), L"Default storage format should be row-major.");
-            
+
             Assert::AreEqual(uint32_t(3), (uint32_t)matrix->GetNumRows(), L"Number of matrix rows should be 3.");
             Assert::AreEqual(uint32_t(4), (uint32_t)matrix->GetNumCols(), L"Number of matrix cols should be 4.");
             Assert::AreEqual(uint32_t(0), (uint32_t)matrix->GetNonZeroCount(), L"Newly created sparse matrix should have zero non-zero entries.");
         }
+        TEST_METHOD(TestSparseRightMultiplyMatchesDense)
+        {
+            // A: 4x5 matrix (row-major data array)
+            constexpr size_t M = 4, N = 5;
+            std::vector<float> data(M * N, 0.0f);
+            // set some non-zero elements
+            data[0 * N + 1] = 2.0f;
+            data[1 * N + 0] = -1.0f;
+            data[2 * N + 4] = 3.5f;
+            data[3 * N + 2] = 4.25f;
 
-        
+            // build a dense input vector of size N
+            ScalarVector<float, N> vec;
+            for (size_t i = 0; i < N; ++i) vec[i] = static_cast<float>(i + 1);
+
+            // expected dense result: result[i] = sum_j A[i,j]*vec[j]
+            std::array<float, M> expected{};
+            for (size_t i = 0; i < M; ++i)
+            {
+                float s = 0.0f;
+                for (size_t j = 0; j < N; ++j) s += data[i * N + j] * vec[j];
+                expected[i] = s;
+            }
+
+            // create sparse matrix from row-major data
+            auto sparse = std::make_unique<SparseMatrix<float, M, N>>(data.data(), data.size(), /*isColumnMajor=*/false);
+            Assert::AreEqual(uint32_t(4), (uint32_t)sparse->GetNumRows(), L"rows");
+            Assert::AreEqual(uint32_t(5), (uint32_t)sparse->GetNumCols(), L"cols");
+
+            auto res = sparse->RightMultiply(vec);
+            for (size_t i = 0; i < M; ++i)
+            {
+                Assert::AreEqual((double)expected[i], (double)(*res)[i], 1e-5, L"RightMultiply result mismatch");
+            }
+        }
+
+        TEST_METHOD(TestSparseLeftMultiplyMatchesDense)
+        {
+            // A: 4x5 matrix, we will construct column-major sparse matrix to test LeftMultiply
+            constexpr size_t M = 4, N = 5;
+            std::vector<float> data(M * N, 0.0f);
+            data[0 * N + 1] = 2.0f;
+            data[1 * N + 0] = -1.0f;
+            data[2 * N + 4] = 3.5f;
+            data[3 * N + 2] = 4.25f;
+
+            // create column-major layout from same logical matrix
+            std::vector<float> colData(M * N, 0.0f);
+            for (size_t r = 0; r < M; ++r)
+                for (size_t c = 0; c < N; ++c)
+                    colData[c * M + r] = data[r * N + c];
+
+            // input vector of size M for left-multiply
+            ScalarVector<float, M> vec;
+            for (size_t i = 0; i < M; ++i) vec[i] = static_cast<float>(i + 1);
+
+            // expected dense result: for each column j: sum_i A[i,j]*vec[i]
+            std::array<float, N> expected{};
+            for (size_t j = 0; j < N; ++j)
+            {
+                float s = 0.0f;
+                for (size_t i = 0; i < M; ++i) s += data[i * N + j] * vec[i];
+                expected[j] = s;
+            }
+
+            // build sparse column-major matrix
+            auto sparseCol = std::make_unique<SparseMatrix<float, M, N>>(colData.data(), colData.size(), /*isColumnMajor=*/true);
+            auto res = sparseCol->LeftMultiply(vec);
+            for (size_t j = 0; j < N; ++j)
+            {
+                Assert::AreEqual((double)expected[j], (double)(*res)[j], 1e-5, L"LeftMultiply result mismatch");
+            }
+        }
+
+        TEST_METHOD(TestFlipStorageBehaviorAndExceptions)
+        {
+            // ScalarMatrix flip toggles storage and affects supported operations
+            auto scalar = std::make_unique<ScalarMatrix<float, 3, 3>>();
+            Assert::IsFalse(scalar->IsColumnMajor());
+            scalar->FlipStorageFormat();
+            Assert::IsTrue(scalar->IsColumnMajor());
+            // RightMultiply should now throw for column-major
+            ScalarVector<float, 3> v;
+            Assert::ExpectException<std::runtime_error>([&](){ scalar->RightMultiply(v); });
+
+            // SparseMatrix flip toggles storage and affects supported operations
+            std::vector<float> data(9, 0.0f);
+            data[0] = 1.0f; data[4] = 2.0f;
+            auto sparse = std::make_unique<SparseMatrix<float, 3, 3>>(data.data(), data.size(), /*isColumnMajor=*/false);
+            Assert::IsFalse(sparse->IsColumnMajor());
+            sparse->FlipStorageFormat();
+            Assert::IsTrue(sparse->IsColumnMajor());
+            Assert::ExpectException<std::runtime_error>([&](){ scalar->RightMultiply(v); });
+        }
+
+        TEST_METHOD(TestSparseMemoryIsLessThanDenseWhenSparse)
+        {
+            constexpr size_t M = 16, N = 16;
+            std::vector<float> data(M * N, 0.0f);
+            // make matrix very sparse: few entries
+            data[0 * N + 0] = 1.0f;
+            data[5 * N + 3] = 2.0f;
+            data[10 * N + 15] = 3.0f;
+
+            auto dense = std::make_unique<ScalarMatrix<float, M, N>>();
+            auto sparse = std::make_unique<SparseMatrix<float, M, N>>(data.data(), data.size(), /*isColumnMajor=*/false);
+
+            size_t denseBytes = dense->TotalMemoryBytes();
+            size_t sparseBytes = sparse->TotalMemoryBytes();
+
+            // print memory usage for informational purposes
+            Logger::WriteMessage(("Dense matrix memory usage: " + std::to_string(denseBytes) + " bytes\n").c_str());
+            Logger::WriteMessage(("Sparse matrix memory usage: " + std::to_string(sparseBytes) + " bytes\n").c_str());
+
+            Assert::IsTrue(sparseBytes < denseBytes, L"Sparse representation should use less memory than dense when matrix is sparse.");
+        }
+
+        TEST_METHOD(TestSparsePerformanceSpeedupAgainstDense)
+        {
+            // Compare time to multiply a matrix by a vector using dense iteration vs sparse representation
+            constexpr size_t M = 400, N = 400; // moderate size
+            std::vector<float> data(M * N, 0.0f);
+            // make ~1% non-zero
+            for (size_t i = 0; i < M * N; ++i)
+            {
+                if ((i % 100) == 0) data[i] = static_cast<float>((i % 13) + 1);
+            }
+
+            // input vector
+            ScalarVector<float, N> vec;
+            for (size_t i = 0; i < N; ++i) vec[i] = static_cast<float>((i % 7) + 1);
+
+            // time dense multiplication (naive row-major)
+            std::vector<float> denseRes(M, 0.0f);
+            auto t0 = std::chrono::high_resolution_clock::now();
+            for (size_t i = 0; i < M; ++i)
+            {
+                float s = 0.0f;
+                for (size_t j = 0; j < N; ++j) s += data[i * N + j] * vec[j];
+                denseRes[i] = s;
+            }
+            auto t1 = std::chrono::high_resolution_clock::now();
+
+            // build sparse CSR and time sparse multiplication
+            auto sparse = std::make_unique<SparseMatrix<float, M, N>>(data.data(), data.size(), /*isColumnMajor=*/false);
+            auto t2 = std::chrono::high_resolution_clock::now();
+            auto sparseResPtr = sparse->RightMultiply(vec);
+            auto t3 = std::chrono::high_resolution_clock::now();
+
+            auto denseDur = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0);
+            auto sparseDur = std::chrono::duration_cast<std::chrono::microseconds>(t3 - t2);
+
+            // validate results match
+            for (size_t i = 0; i < M; ++i)
+            {
+                Assert::AreEqual((double)denseRes[i], (double)(*sparseResPtr)[i], 1e-3, L"Performance test result mismatch");
+            }
+
+            // print timings for informational purposes
+            Logger::WriteMessage(("Dense multiplication time: " + std::to_string(denseDur.count()) + " microseconds\n").c_str());
+            Logger::WriteMessage(("Sparse multiplication time: " + std::to_string(sparseDur.count()) + " microseconds\n").c_str());
+            // sparse should be faster (or at least not slower) for this sparsity
+            Assert::IsTrue(sparseDur.count() < denseDur.count() * 1.1, L"Sparse multiplication should be faster than dense iteration for very sparse matrices.");
+        }
     };
 }

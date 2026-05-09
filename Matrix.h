@@ -169,7 +169,7 @@ public:
         if (isColumnMajor)
         {
             m_pointers.reserve(N + 1);
-            BuildCSCMatrix(data, size);
+            BuildCSCMatrixColumnMajor(data, size);
         }
         else
         {
