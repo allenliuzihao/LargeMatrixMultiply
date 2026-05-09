@@ -7,6 +7,7 @@ class Matrix
 {
 public:
     Matrix(bool isColumnMajor = false) : m_isColumnMajor(isColumnMajor) {}
+    virtual ~Matrix() = default;
     
     inline size_t GetNumRows() const { return M; }
     inline size_t GetNumCols() const { return N; }
@@ -39,10 +40,34 @@ public:
         m_data = new T[m_size](); // Allocate memory for M*N elements and initialize to default value of T
         std::memset(m_data, 0, m_size * sizeof(T)); // Initialize all elements to zero (or default value of T)
     }
-
     ~ScalarMatrix()
     {
         delete[] m_data; // Free the allocated memory
+    }
+
+    // Disable copy to avoid double-free of raw pointer
+    ScalarMatrix(const ScalarMatrix&) = delete;
+    ScalarMatrix& operator=(const ScalarMatrix&) = delete;
+
+    // Implement move semantics
+    ScalarMatrix(ScalarMatrix&& other) noexcept : Matrix<T, M, N>(other.m_isColumnMajor), m_data(other.m_data), m_size(other.m_size)
+    {
+        other.m_data = nullptr;
+        other.m_size = 0;
+    }
+
+    ScalarMatrix& operator=(ScalarMatrix&& other) noexcept
+    {
+        if (this != &other)
+        {
+            delete[] m_data;
+            m_data = other.m_data;
+            m_size = other.m_size;
+            this->m_isColumnMajor = other.m_isColumnMajor;
+            other.m_data = nullptr;
+            other.m_size = 0;
+        }
+        return *this;
     }
 
     void FlipStorageFormat() override

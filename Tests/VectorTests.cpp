@@ -389,5 +389,25 @@ namespace VectorTests
 			Assert::IsTrue(speedup > 1.0,
 				L"SparseVector · SparseVector should be faster for sparse data (1% non-zero)");
 		}
+
+		TEST_METHOD(TestSparseVectorProxyInsertRemoveAndNnz)
+		{
+			SparseVector<float, 8> sv;
+			Assert::AreEqual(uint32_t(0), (uint32_t)sv.GetNonZeroCount(), L"Initially zero nnz");
+
+			sv[2] = 3.0f;
+			Assert::AreEqual(size_t(1), sv.GetNonZeroCount(), L"nnz after insert should be 1");
+			Assert::AreEqual(3.0, (double)sv[2], 1e-6, L"Inserted value should be readable");
+
+			sv[2] = 0.0f;
+			Assert::AreEqual(size_t(0), sv.GetNonZeroCount(), L"nnz after remove should be 0");
+
+			// insert at beginning and end
+			sv[0] = 1.0f;
+			sv[7] = 2.0f;
+			Assert::AreEqual(size_t(2), sv.GetNonZeroCount(), L"nnz after two inserts should be 2");
+			Assert::AreEqual(1.0, (double)sv[0], 1e-6, L"value at 0");
+			Assert::AreEqual(2.0, (double)sv[7], 1e-6, L"value at 7");
+		}
 	};
 }

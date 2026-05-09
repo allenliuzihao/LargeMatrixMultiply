@@ -6,6 +6,8 @@ class Vector
 public:
     using element_type = T;  
 
+    virtual ~Vector() = default;
+
     virtual float Dot(const Vector<T, N>& other) const = 0;
     virtual const T& operator[](size_t index) const = 0;
 
