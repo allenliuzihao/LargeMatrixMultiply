@@ -505,5 +505,41 @@ namespace MatrixTests
             Assert::AreEqual(uint32_t(2), (uint32_t)sparse->GetNonZeroCount(), L"nnz after removal should be 2");
             Assert::AreEqual(0.0, (double)sparse->GetElement(3, 4), 1e-6, L"Removed element should be zero");
         }
+
+        TEST_METHOD(TestSparseMatrixSetElement_InsertRemove_CSC)
+        {
+            // Use a dense ScalarMatrix to construct a CSC sparse matrix, then test SetElement in column-major layout
+            constexpr size_t M = 5, N = 6;
+            ScalarMatrix<float, M, N> dense(false);
+            // populate two non-zeros
+            dense.SetElement(1, 2, 3.0f);
+            dense.SetElement(3, 4, 4.0f);
+
+            // build sparse CSC from dense (column-major)
+            auto sparseCSC = std::make_unique<SparseMatrix<float, M, N>>(dense, /*isColumnMajor=*/true);
+            Assert::IsTrue(sparseCSC->IsColumnMajor(), L"Sparse should be column-major");
+            Assert::AreEqual(uint32_t(2), (uint32_t)sparseCSC->GetNonZeroCount(), L"Initial nnz should be 2");
+
+            // insert at (0,0)
+            sparseCSC->SetElement(0, 0, 5.0f);
+            Assert::AreEqual(uint32_t(3), (uint32_t)sparseCSC->GetNonZeroCount(), L"nnz after insert should be 3");
+            Assert::AreEqual(5.0, (double)sparseCSC->GetElement(0, 0), 1e-6, L"Inserted value mismatch (CSC)");
+
+            // update existing element
+            sparseCSC->SetElement(1, 2, 6.5f);
+            Assert::AreEqual(6.5, (double)sparseCSC->GetElement(1, 2), 1e-6, L"Updated value mismatch (CSC)");
+
+            // remove by setting zero
+            sparseCSC->SetElement(3, 4, 0.0f);
+            Assert::AreEqual(uint32_t(2), (uint32_t)sparseCSC->GetNonZeroCount(), L"nnz after removal should be 2 (CSC)");
+            Assert::AreEqual(0.0, (double)sparseCSC->GetElement(3, 4), 1e-6, L"Removed element should be zero (CSC)");
+
+            auto denseFromSparse = sparseCSC->ToDense();
+            dense.SetElement(1, 2, 6.5);
+            dense.SetElement(3, 4, 0.0);
+            dense.SetElement(0, 0, 5.0);
+            dense.FlipStorageFormat(); // flip original dense to column-major for comparison
+            CheckMatrixEqual(*denseFromSparse, dense); // should be equal to itself
+        }
     };
 }
