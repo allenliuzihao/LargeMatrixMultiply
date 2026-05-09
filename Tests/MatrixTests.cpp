@@ -1,11 +1,12 @@
 #include "pch.h"
 #include "CppUnitTest.h"
+#include <random>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace MatrixTests
 {
-    TEST_CLASS(ScalarMatrixTests)
+    TEST_CLASS(SparseMatrixTests)
     {
     public:
         TEST_METHOD(TestScalarMatrixCreation_Default)
@@ -15,11 +16,92 @@ namespace MatrixTests
             Assert::IsNotNull(matrix.get(), L"Matrix should be created successfully.");
             Assert::AreEqual(false, matrix->IsColumnMajor(), L"Default storage format should be row-major.");
         }
-    };
 
-    TEST_CLASS(SparseMatrixTests)
-    {
-    public:
+        TEST_METHOD(TestLargeSparseLeftRightSpeedup_30PercentSparsity)
+        {
+            // large matrix with 30% non-zero entries
+            constexpr size_t M = 2000, N = 2000; // large but reasonable for CI on modern machines
+            std::vector<float> data(M * N, 0.0f);
+
+            std::mt19937 rng(12345);
+            std::bernoulli_distribution keep(0.30); // 30% non-zero
+            std::uniform_real_distribution<float> valDist(1.0f, 5.0f);
+
+            for (size_t i = 0; i < M; ++i)
+            {
+                for (size_t j = 0; j < N; ++j)
+                {
+                    if (keep(rng)) data[i * N + j] = valDist(rng);
+                }
+            }
+
+            // right-multiply: A (MxN) * x (N) -> y (M)
+            ScalarVector<float, N> vecN;
+            for (size_t j = 0; j < N; ++j) vecN[j] = static_cast<float>((j % 7) + 1);
+
+            // dense right multiply
+            std::vector<float> denseRight(M, 0.0f);
+            auto t0 = std::chrono::high_resolution_clock::now();
+            for (size_t i = 0; i < M; ++i)
+            {
+                float s = 0.0f;
+                for (size_t j = 0; j < N; ++j) s += data[i * N + j] * vecN[j];
+                denseRight[i] = s;
+            }
+            auto t1 = std::chrono::high_resolution_clock::now();
+
+            // build sparse CSR and time right multiply
+            auto sparse = std::make_unique<SparseMatrix<float, M, N>>(data.data(), data.size(), /*isColumnMajor=*/false);
+            auto t2 = std::chrono::high_resolution_clock::now();
+            auto sparseRightPtr = sparse->RightMultiply(vecN);
+            auto t3 = std::chrono::high_resolution_clock::now();
+
+            auto denseRightDur = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0);
+            auto sparseRightDur = std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t2);
+
+            // validate results
+            for (size_t i = 0; i < M; ++i) Assert::AreEqual((double)denseRight[i], (double)(*sparseRightPtr)[i], 1e-3, L"Right multiply mismatch");
+
+            Logger::WriteMessage(("Dense right multiply ms: " + std::to_string(denseRightDur.count()) + "\n").c_str());
+            Logger::WriteMessage(("Sparse right multiply ms: " + std::to_string(sparseRightDur.count()) + "\n").c_str());
+            Assert::IsTrue(sparseRightDur.count() < denseRightDur.count(), L"Sparse right multiply should be faster than dense for 30% non-zero.");
+
+            // left-multiply: x (M) * A (MxN) -> y (N)
+            ScalarVector<float, M> vecM;
+            for (size_t i = 0; i < M; ++i) vecM[i] = static_cast<float>((i % 11) + 1);
+
+            // dense left multiply
+            std::vector<float> denseLeft(N, 0.0f);
+            auto t4 = std::chrono::high_resolution_clock::now();
+            for (size_t j = 0; j < N; ++j)
+            {
+                float s = 0.0f;
+                for (size_t i = 0; i < M; ++i) s += data[i * N + j] * vecM[i];
+                denseLeft[j] = s;
+            }
+            auto t5 = std::chrono::high_resolution_clock::now();
+
+            // build sparse CSC (column-major) for left multiply
+            std::vector<float> colData(M * N);
+            for (size_t r = 0; r < M; ++r)
+                for (size_t c = 0; c < N; ++c)
+                    colData[c * M + r] = data[r * N + c];
+
+            sparse->FlipStorageFormat();
+            auto t6 = std::chrono::high_resolution_clock::now();
+            auto sparseLeftPtr = sparse->LeftMultiply(vecM);
+            auto t7 = std::chrono::high_resolution_clock::now();
+
+            auto denseLeftDur = std::chrono::duration_cast<std::chrono::milliseconds>(t5 - t4);
+            auto sparseLeftDur = std::chrono::duration_cast<std::chrono::milliseconds>(t7 - t6);
+
+            for (size_t j = 0; j < N; ++j) Assert::AreEqual((double)denseLeft[j], (double)(*sparseLeftPtr)[j], 1e-3, L"Left multiply mismatch");
+
+            Logger::WriteMessage(("Dense left multiply ms: " + std::to_string(denseLeftDur.count()) + "\n").c_str());
+            Logger::WriteMessage(("Sparse left multiply ms: " + std::to_string(sparseLeftDur.count()) + "\n").c_str());
+            Assert::IsTrue(sparseLeftDur.count() < denseLeftDur.count(), L"Sparse left multiply should be faster than dense for 30% non-zero.");
+        }
+
         TEST_METHOD(TestSparseMatrixCreation_Default)
         {
             auto matrix = std::make_unique<SparseMatrix<float, 3, 4>>();
