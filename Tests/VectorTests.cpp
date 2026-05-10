@@ -277,14 +277,14 @@ namespace VectorTests
 				float sparseScalarResult = sparseVec->Dot(*scalarVec2);
 				for (int i = 0; i < 999; ++i) sparseScalarResult = sparseVec->Dot(*scalarVec2);
 				auto endSparseScalar = std::chrono::high_resolution_clock::now();
-				auto sparseScalarDuration = std::chrono::duration_cast<std::chrono::milliseconds>(endSparseScalar - startSparseScalar);
+				auto sparseScalarDuration = std::chrono::duration_cast<std::chrono::microseconds>(endSparseScalar - startSparseScalar);
 
 				// Benchmark: ScalarVector · ScalarVector
 				auto startScalarScalar = std::chrono::high_resolution_clock::now();
 				float scalarScalarResult = scalarVec1->Dot(*scalarVec2);
 				for (int i = 0; i < 999; ++i) scalarScalarResult = scalarVec1->Dot(*scalarVec2);
 				auto endScalarScalar = std::chrono::high_resolution_clock::now();
-				auto scalarScalarDuration = std::chrono::duration_cast<std::chrono::milliseconds>(endScalarScalar - startScalarScalar);
+				auto scalarScalarDuration = std::chrono::duration_cast<std::chrono::microseconds>(endScalarScalar - startScalarScalar);
 
 				// Results should be equal
 				Assert::AreEqual(scalarScalarResult, sparseScalarResult, 0.01f, L"Sparse·Scalar and Scalar·Scalar should produce same result");
@@ -297,8 +297,8 @@ namespace VectorTests
 					L"dot(SparseVector, ScalarVector) vs dot(ScalarVector, ScalarVector)\n" +
 					std::wstring(L"\tVector Size: ") + std::to_wstring(VECTOR_SIZE) +
 					L", Sparsity: " + std::to_wstring(sparsity) + L"\n" +
-					L"\tSparse ms: " + std::to_wstring(sparseScalarDuration.count()) + L" ms, " +
-					L"\tDense ms: " + std::to_wstring(scalarScalarDuration.count()) + L" ms\n" +
+					L"\tSparse us: " + std::to_wstring(sparseScalarDuration.count()) + L" us, " +
+					L"\tDense us: " + std::to_wstring(scalarScalarDuration.count()) + L" us\n" +
 					L"\tSpeedup: " + std::to_wstring(speedup) + L"x\n";
 				Logger::WriteMessage(message.c_str());
 
@@ -339,14 +339,14 @@ namespace VectorTests
 				float sparseResult = sparseVec1->Dot(*sparseVec2);
 				for (int i = 0; i < 999; ++i) sparseResult = sparseVec1->Dot(*sparseVec2);
 				auto endSparseSparse = std::chrono::high_resolution_clock::now();
-				auto sparseSparseDuration = std::chrono::duration_cast<std::chrono::milliseconds>(endSparseSparse - startSparseSparse);
+				auto sparseSparseDuration = std::chrono::duration_cast<std::chrono::microseconds>(endSparseSparse - startSparseSparse);
 
 				// Benchmark: ScalarVector · ScalarVector
 				auto startScalarScalar = std::chrono::high_resolution_clock::now();
 				float scalarResult = scalarVec1->Dot(*scalarVec2);
 				for (int i = 0; i < 999; ++i) scalarResult = scalarVec1->Dot(*scalarVec2);
 				auto endScalarScalar = std::chrono::high_resolution_clock::now();
-				auto scalarScalarDuration = std::chrono::duration_cast<std::chrono::milliseconds>(endScalarScalar - startScalarScalar);
+				auto scalarScalarDuration = std::chrono::duration_cast<std::chrono::microseconds>(endScalarScalar - startScalarScalar);
 
 				// Results should be equal
 				Assert::AreEqual(scalarResult, sparseResult, 0.01f, L"Sparse·Sparse and Scalar·Scalar should produce same result");
@@ -359,8 +359,8 @@ namespace VectorTests
 					L"dot(SparseVector, SparseVector) vs dot(ScalarVector, ScalarVector)\n" +
 					std::wstring(L"\tVector Size: ") + std::to_wstring(VECTOR_SIZE) +
 					L", Sparsity: " + std::to_wstring(sparsity) + L"\n" +
-					L"\tSparse ms: " + std::to_wstring(sparseSparseDuration.count()) + L" ms, " +
-					L"\tDense ms: " + std::to_wstring(scalarScalarDuration.count()) + L" ms\n" +
+					L"\tSparse us: " + std::to_wstring(sparseSparseDuration.count()) + L" us, " +
+					L"\tDense us: " + std::to_wstring(scalarScalarDuration.count()) + L" us\n" +
 					L"\tSpeedup: " + std::to_wstring(speedup) + L"x\n";
 
 				Logger::WriteMessage(message.c_str());

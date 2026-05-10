@@ -611,7 +611,7 @@ namespace MatrixTests
                 CheckVectorEqual(*denseVecResult, *sparseVecResult);  
 
                 // Log mat*vec results
-                Logger::WriteMessage((std::string("mat*vec sparsity ") + std::to_string(sparsity) + ": dense micro=" + std::to_string(denseMatVecMs) + ", sparse micro=" + std::to_string(sparseMatVecMs) + ", speedup=" + std::to_string((double)denseMatVecMs / (double)sparseMatVecMs) + "\n").c_str());
+                Logger::WriteMessage((std::string("mat*vec sparsity ") + std::to_string(sparsity) + ": dense us=" + std::to_string(denseMatVecMs) + ", sparse us=" + std::to_string(sparseMatVecMs) + ", speedup=" + std::to_string((double)denseMatVecMs / (double)sparseMatVecMs) + "\n").c_str());
 
                 // Prepare scalar matrices for dense mat*mat
                 ScalarMatrix<float, N, K> Bcol(true);
@@ -660,7 +660,7 @@ namespace MatrixTests
                 CheckMatrixEqual(*denseMatMatResult, *sparseSparseResult);
                 
                 // Log mat*mat results
-                Logger::WriteMessage((std::string("mat*mat sparsity ") + std::to_string(sparsity) + ": dense dense micro=" + std::to_string(denseMatMatMs) + ", sparse*scalar micro=" + std::to_string(sparseMatDenseMs) + ", sparse*sparse micro=" + std::to_string(sparseMatMatMs) + "\n").c_str());
+                Logger::WriteMessage((std::string("mat*mat sparsity ") + std::to_string(sparsity) + ": dense dense us =" + std::to_string(denseMatMatMs) + ", sparse*scalar us=" + std::to_string(sparseMatDenseMs) + ", sparse*sparse us=" + std::to_string(sparseMatMatMs) + "\n").c_str());
                 Logger::WriteMessage((std::string("\tspeedups (dense/sparse): scalar-mat=") + std::to_string((double)denseMatMatMs / (double)sparseMatDenseMs) + ", sparse-sparse=" + std::to_string((double)denseMatMatMs / (double)sparseMatMatMs) + "\n").c_str());
             }
         }

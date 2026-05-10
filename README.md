@@ -2,6 +2,16 @@
 
 This is a C++ library project implementing matrix and vector primitives and unit tests with sparse matrix and vector optimizations techniques including sparse vector representation and sparse matrix representation using CSR (row-based) and CSC (column-based) Compression Sparse Formats.
 
+Speedup summary:
+
+- `SpMV (sparse mat × vec)`: 1%: ×28.5; 5%: ×5.9; 10%: ×3.0; 25%: ×1.19.
+- `SpMM (mat × mat)` (dense / sparse variants): 
+	- sparse matmul dense speedups — 1%: ×11.2; 5%: ×3.03; 10%: ×1.59; 25%: ×0.65 (dense faster). 
+	- sparse matmul sparse speedups — 1%: ×8.17; 5%: ×1.51; 10%: ×0.76; 25%: ×0.30 (dense faster).
+- `SpV (dot)`: 
+	- sparse dot sparse — 1%: ×58.35; 5%: ×11.92; 10%: ×5.99; 25%: ×2.42.
+	- sparse dot dense — 1%: ×85.51; 5%: ×17.73; 10%: ×8.94; 25%: ×3.51.
+
 ## Project summary
 
 This repository contains native C++ implementations for matrix and vector operations used for large-scale numerical work. The code is organized as a Visual Studio project and includes a small unit-test project under `Tests/`.
@@ -156,47 +166,47 @@ These notes are intended as guidance; the raw numbers above are from a microbenc
 
 ### Sparse vector dot-product microbenchmarks
 
-Raw benchmark output (vector dot products, measured in milliseconds):
+Raw benchmark output (vector dot products, measured in microseconds):
 
 ```
-dot(SparseVector, SparseVector) vs dot(ScalarVector, ScalarVector)
+dot(SparseVector, ScalarVector) vs dot(ScalarVector, ScalarVector)
 	Vector Size: 10000, Sparsity: 0.010000
-	Sparse ms: 1 ms, 	Dense ms: 113 ms
-	Speedup: 113.000000x
-dot(SparseVector, SparseVector) vs dot(ScalarVector, ScalarVector)
+	Sparse us: 1332 us, 	Dense us: 113900 us
+	Speedup: 85.510511x
+dot(SparseVector, ScalarVector) vs dot(ScalarVector, ScalarVector)
 	Vector Size: 10000, Sparsity: 0.050000
-	Sparse ms: 9 ms, 	Dense ms: 114 ms
-	Speedup: 12.666667x
-dot(SparseVector, SparseVector) vs dot(ScalarVector, ScalarVector)
+	Sparse us: 6422 us, 	Dense us: 113846 us
+	Speedup: 17.727499x
+dot(SparseVector, ScalarVector) vs dot(ScalarVector, ScalarVector)
 	Vector Size: 10000, Sparsity: 0.100000
-	Sparse ms: 19 ms, 	Dense ms: 114 ms
-	Speedup: 6.000000x
-dot(SparseVector, SparseVector) vs dot(ScalarVector, ScalarVector)
+	Sparse us: 12774 us, 	Dense us: 114178 us
+	Speedup: 8.938312x
+dot(SparseVector, ScalarVector) vs dot(ScalarVector, ScalarVector)
 	Vector Size: 10000, Sparsity: 0.250000
-	Sparse ms: 47 ms, 	Dense ms: 113 ms
-	Speedup: 2.404255x
+	Sparse us: 32438 us, 	Dense us: 113974 us
+	Speedup: 3.513595x
 
-dot(SparseVector, ScalarVector) vs dot(ScalarVector, ScalarVector)
+dot(SparseVector, SparseVector) vs dot(ScalarVector, ScalarVector)
 	Vector Size: 10000, Sparsity: 0.010000
-	Sparse ms: 1 ms, 	Dense ms: 117 ms
-	Speedup: 117.000000x
-dot(SparseVector, ScalarVector) vs dot(ScalarVector, ScalarVector)
+	Sparse us: 1957 us, 	Dense us: 114193 us
+	Speedup: 58.351048x
+dot(SparseVector, SparseVector) vs dot(ScalarVector, ScalarVector)
 	Vector Size: 10000, Sparsity: 0.050000
-	Sparse ms: 6 ms, 	Dense ms: 116 ms
-	Speedup: 19.333333x
-dot(SparseVector, ScalarVector) vs dot(ScalarVector, ScalarVector)
+	Sparse us: 9567 us, 	Dense us: 114064 us
+	Speedup: 11.922651x
+dot(SparseVector, SparseVector) vs dot(ScalarVector, ScalarVector)
 	Vector Size: 10000, Sparsity: 0.100000
-	Sparse ms: 13 ms, 	Dense ms: 115 ms
-	Speedup: 8.846154x
-dot(SparseVector, ScalarVector) vs dot(ScalarVector, ScalarVector)
+	Sparse us: 18856 us, 	Dense us: 112899 us
+	Speedup: 5.987431x
+dot(SparseVector, SparseVector) vs dot(ScalarVector, ScalarVector)
 	Vector Size: 10000, Sparsity: 0.250000
-	Sparse ms: 31 ms, 	Dense ms: 116 ms
-	Speedup: 3.741935x
+	Sparse us: 47377 us, 	Dense us: 114470 us
+	Speedup: 2.416151x
 ```
 
 Observations:
 
-- These dot-product microbenchmarks show very large speedups for sparse vectors at low densities (×100+ at 1% sparsity). Even at 25% nonzeros the sparse dot remains faster (2–4×) for the measured vector size (10k).
+- These dot-product microbenchmarks show very large speedups for sparse vectors at low densities (e.g. sparse×dense ≈ ×85.5 and sparse×sparse ≈ ×58.4 at 1% density). Even at 25% nonzeros sparse dot remains faster (~×2.4–×3.5) for the measured vector size (10k).
 - Dot-product operations are especially friendly to sparse formats because the sparse algorithm only iterates the nonzero entries and performs O(nnz) work rather than scanning the full dense vector — this greatly reduces memory traffic and leads to large wins when nnz is small relative to the vector length.
 
 Implementation notes (how this repo implements dot products):
