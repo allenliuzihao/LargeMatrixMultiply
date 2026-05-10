@@ -555,7 +555,7 @@ namespace MatrixTests
         {
             // Compare dense vs sparse performance for mat*vec, mat*scalarMatrix, and sparse*sparse
             constexpr size_t M = 512, N = 512, K = 512; // large but reasonable
-            std::vector<double> sparsities = {0.01, 0.05, 0.10};
+            std::vector<double> sparsities = {0.01, 0.05, 0.10, 0.25};
             std::mt19937 rng(42);
             std::uniform_real_distribution<float> valDist(1.0f, 5.0f);
 
