@@ -2,7 +2,7 @@
 
 This is a C++ library project implementing matrix and vector primitives and unit tests with sparse matrix and vector optimizations techniques including sparse vector representation and sparse matrix representation using CSR (row-based) and CSC (column-based) Compression Sparse Formats.
 
-Speedup summary:
+Speedup summary: Benchmark is performed on Intel(R) Core(TM) i9-10900K CPU @ 3.70GHz, 3696 Mhz, 10 Core(s), 20 Logical Processor(s).
 
  `SpMV (sparse mat × vec)`: 1%: ×24.09; 5%: ×6.04; 10%: ×3.13; 25%: ×1.24.
  - `SpMM (mat × mat)` (dense / sparse variants): 
@@ -129,7 +129,7 @@ See `Matrix.h` and `Vector.h` for the exact method names and implementations use
 
 ## Benchmarks and Sparsity Analysis
 
-The repository includes simple microbenchmarks for sparse and dense matrix/vector kernels. Below are representative results and a short interpretation of their implications for when sparse formats help. Benchmark is performed on Intel(R) Core(TM) i9-10900K CPU @ 3.70GHz, 3696 Mhz, 10 Core(s), 20 Logical Processor(s).
+The repository includes simple microbenchmarks for sparse and dense matrix/vector kernels. Below are representative results and a short interpretation of their implications for when sparse formats help. 
 
 Raw benchmark output (measured in microseconds):
 
