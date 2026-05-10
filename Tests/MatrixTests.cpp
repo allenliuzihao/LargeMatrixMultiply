@@ -24,6 +24,15 @@ namespace MatrixTests
             }
         }
 
+        template <size_t N>
+        void CheckVectorEqual(const ScalarVector<float, N>& denseVecRef, const ScalarVector<float, N>& sparseVecResult)
+        {
+            for (size_t i = 0; i < N; ++i)
+            {
+                Assert::AreEqual((double)denseVecRef[i], (double)sparseVecResult[i], 1e-3, L"mat*vec sparse result mismatch");
+            }
+        }
+
     public:
         TEST_METHOD(TestScalarMatrixCreation_Default)
         {
@@ -576,11 +585,12 @@ namespace MatrixTests
                         Arow.SetElement(i, j, Adata[i * N + j]);
 
                 // Dense mat*vec naive timing
+                std::unique_ptr<ScalarVector<float, M>> denseVecResult;
                 double denseMatVecMs = std::numeric_limits<double>::max();
                 for (int r = 0; r < repeats; ++r)
                 {
                     auto t0 = std::chrono::high_resolution_clock::now();
-                    auto out = Arow.RightMultiply(vecN);
+                    denseVecResult = Arow.RightMultiply(vecN);
                     auto t1 = std::chrono::high_resolution_clock::now();
                     denseMatVecMs = std::min(denseMatVecMs, (double) std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count());
                 }
@@ -588,13 +598,17 @@ namespace MatrixTests
                 // Sparse mat*vec timing (build sparse CSR once)
                 auto sparseA = std::make_unique<SparseMatrix<float, M, N>>(Adata.data(), Adata.size(), /*isColumnMajor=*/false);
                 double sparseMatVecMs = std::numeric_limits<double>::max();
+                std::unique_ptr<ScalarVector<float, M>> sparseVecResult;
                 for (int r = 0; r < repeats; ++r)
                 {
                     auto t0 = std::chrono::high_resolution_clock::now();
-                    auto spos = sparseA->RightMultiply(vecN);
+                    sparseVecResult = sparseA->RightMultiply(vecN);
                     auto t1 = std::chrono::high_resolution_clock::now();
                     sparseMatVecMs = std::min(sparseMatVecMs, (double) std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count());
                 }
+
+                // correctness check for mat*vec: compare sparse result to dense reference
+                CheckVectorEqual(*denseVecResult, *sparseVecResult);  
 
                 // Log mat*vec results
                 Logger::WriteMessage((std::string("mat*vec sparsity ") + std::to_string(sparsity) + ": dense micro=" + std::to_string(denseMatVecMs) + ", sparse micro=" + std::to_string(sparseMatVecMs) + ", speedup=" + std::to_string((double)denseMatVecMs / (double)sparseMatVecMs) + "\n").c_str());
@@ -607,35 +621,44 @@ namespace MatrixTests
 
                 // Dense scalar matrix multiply timing
                 double denseMatMatMs = std::numeric_limits<double>::max();
+                std::unique_ptr<ScalarMatrix<float, M, K>> denseMatMatResult;
                 for (int r = 0; r < repeats; ++r)
                 {
                     auto t0 = std::chrono::high_resolution_clock::now();
-                    auto denseRes = Arow.RightMultiply(Bcol);
+                    denseMatMatResult = Arow.RightMultiply(Bcol);
                     auto t1 = std::chrono::high_resolution_clock::now();
                     denseMatMatMs = std::min(denseMatMatMs, (double)std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count());
                 }
 
                 // Sparse A CSR and dense B
                 double sparseMatDenseMs = std::numeric_limits<double>::max(); // sparse * scalar-matrix
+                std::unique_ptr<ScalarMatrix<float, M, K>> sparseDenseResult;
                 for (int r = 0; r < repeats; ++r)
                 {
                     auto t0 = std::chrono::high_resolution_clock::now();
-                    auto sparseDenseRes = sparseA->RightMultiply(Bcol);
+                    sparseDenseResult = sparseA->RightMultiply(Bcol);
                     auto t1 = std::chrono::high_resolution_clock::now();
                     sparseMatDenseMs = std::min(sparseMatDenseMs, (double)std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count());
                 }
 
+                // correctness check: sparseA * Bcol vs dense Arow * Bcol
+                CheckMatrixEqual(*denseMatMatResult, *sparseDenseResult);
+
                 // Sparse * Sparse timing
                 double sparseMatMatMs = std::numeric_limits<double>::max();
                 auto sparseB = std::make_unique<SparseMatrix<float, N, K>>(Bcol, /*isColumnMajor=*/true);
+                std::unique_ptr<ScalarMatrix<float, M, K>> sparseSparseResult;
                 for (int r = 0; r < repeats; ++r)
                 {
                     auto t0 = std::chrono::high_resolution_clock::now();
-                    auto sparseRes = sparseA->RightMultiply(*sparseB);
+                    sparseSparseResult = sparseA->RightMultiply(*sparseB);
                     auto t1 = std::chrono::high_resolution_clock::now();
                     sparseMatMatMs = std::min(sparseMatMatMs, (double)std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count());
                 }
 
+                // correctness check: sparseA * sparseB vs dense Arow * Bcol
+                CheckMatrixEqual(*denseMatMatResult, *sparseSparseResult);
+                
                 // Log mat*mat results
                 Logger::WriteMessage((std::string("mat*mat sparsity ") + std::to_string(sparsity) + ": dense dense micro=" + std::to_string(denseMatMatMs) + ", sparse*scalar micro=" + std::to_string(sparseMatDenseMs) + ", sparse*sparse micro=" + std::to_string(sparseMatMatMs) + "\n").c_str());
                 Logger::WriteMessage((std::string("\tspeedups (dense/sparse): scalar-mat=") + std::to_string((double)denseMatMatMs / (double)sparseMatDenseMs) + ", sparse-sparse=" + std::to_string((double)denseMatMatMs / (double)sparseMatMatMs) + "\n").c_str());
