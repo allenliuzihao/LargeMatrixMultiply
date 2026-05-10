@@ -4,15 +4,15 @@ This is a C++ library project implementing matrix and vector primitives and unit
 
 Speedup summary:
 
-- `SpMV (sparse mat × vec)`: 1%: ×28.5; 5%: ×5.9; 10%: ×3.0; 25%: ×1.19.
-- `SpMM (mat × mat)` (dense / sparse variants): 
-	- sparse matmul dense speedups — 1%: ×11.2; 5%: ×3.03; 10%: ×1.59; 25%: ×0.65 (dense faster). 
-	- sparse matmul sparse speedups — 1%: ×8.17; 5%: ×1.51; 10%: ×0.76; 25%: ×0.30 (dense faster).
-- `SpV (dot)`: 
+ `SpMV (sparse mat × vec)`: 1%: ×24.09; 5%: ×6.04; 10%: ×3.13; 25%: ×1.24.
+ - `SpMM (mat × mat)` (dense / sparse variants): 
+	- sparse matmul dense speedups — 1%: ×12.05; 5%: ×3.01; 10%: ×1.60; 25%: ×0.62 (dense faster). 
+	- sparse matmul sparse speedups — 1%: ×8.28; 5%: ×1.51; 10%: ×0.76; 25%: ×0.31 (dense faster).
+ - `SpV (dot)`: 
 	- sparse dot sparse — 1%: ×58.35; 5%: ×11.92; 10%: ×5.99; 25%: ×2.42.
 	- sparse dot dense — 1%: ×85.51; 5%: ×17.73; 10%: ×8.94; 25%: ×3.51.
 
-## Project summary
+ ## Project summary
 
 This repository contains native C++ implementations for matrix and vector operations used for large-scale numerical work. The code is organized as a Visual Studio project and includes a small unit-test project under `Tests/`.
 
@@ -134,18 +134,18 @@ The repository includes simple microbenchmarks for sparse and dense matrix/vecto
 Raw benchmark output (measured in microseconds):
 
 ```
-mat*vec sparsity 0.010000: dense micro=2422.000000, sparse micro=85.000000, speedup=28.494118x
-mat*mat sparsity 0.010000: dense dense micro=257576.000000, sparse*scalar micro=23012.000000, sparse*sparse micro=31521.000000
-	.speedups (dense/sparse): scalar-mat=11.193117x, sparse-sparse=8.171568x
-mat*vec sparsity 0.050000: dense micro=2390.000000, sparse micro=406.000000, speedup=5.886700x
-mat*mat sparsity 0.050000: dense dense micro=256678.000000, sparse*scalar micro=84767.000000, sparse*sparse micro=170114.000000
-	.speedups (dense/sparse): scalar-mat=3.028042x, sparse-sparse=1.508859x
-mat*vec sparsity 0.100000: dense micro=2363.000000, sparse micro=787.000000, speedup=3.002541x
-mat*mat sparsity 0.100000: dense dense micro=255914.000000, sparse*scalar micro=161375.000000, sparse*sparse micro=337035.000000
-	.speedups (dense/sparse): scalar-mat=1.585834x, sparse-sparse=0.759310x
-mat*vec sparsity 0.250000: dense micro=2361.000000, sparse micro=1980.000000, speedup=1.192424x
-mat*mat sparsity 0.250000: dense dense micro=256298.000000, sparse*scalar micro=397345.000000, sparse*sparse micro=852453.000000
-	.speedups (dense/sparse): scalar-mat=0.645026x, sparse-sparse=0.300659x
+mat*vec sparsity 0.010000: dense us=2939.000000, sparse us=122.000000, speedup=24.090164
+mat*mat sparsity 0.010000: dense dense us =287362.000000, sparse*scalar us=23844.000000, sparse*sparse us=34699.000000
+	speedups (dense/sparse): sparse-dense=12.051753, sparse-sparse=8.281564
+mat*vec sparsity 0.050000: dense us=2381.000000, sparse us=394.000000, speedup=6.043147
+mat*mat sparsity 0.050000: dense dense us =255754.000000, sparse*scalar us=84952.000000, sparse*sparse us=169759.000000
+	speedups (dense/sparse): sparse-dense=3.010571, sparse-sparse=1.506571
+mat*vec sparsity 0.100000: dense us=2382.000000, sparse us=760.000000, speedup=3.134211
+mat*mat sparsity 0.100000: dense dense us =255826.000000, sparse*scalar us=160329.000000, sparse*sparse us=337495.000000
+	speedups (dense/sparse): sparse-dense=1.595631, sparse-sparse=0.758014
+mat*vec sparsity 0.250000: dense us=2384.000000, sparse us=1926.000000, speedup=1.237799
+mat*mat sparsity 0.250000: dense dense us =267809.000000, sparse*scalar us=428907.000000, sparse*sparse us=850512.000000
+	speedups (dense/sparse): sparse-dense=0.624399, sparse-sparse=0.314880
 ```
 
 Summary and interpretation:

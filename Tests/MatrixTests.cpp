@@ -220,11 +220,11 @@ namespace MatrixTests
                 for (size_t k = 0; k < K; ++k)
                     Assert::AreEqual((double)denseRes->GetElement(i, k), (double)sparseRes->GetElement(i, k), 1e-3, L"Matrix-matrix multiply result mismatch");
 
-            Logger::WriteMessage(("Dense matrix-matrix ms: " + std::to_string(denseMs) + "\n").c_str());
-            Logger::WriteMessage(("Sparse matrix-matrix ms: " + std::to_string(sparseMs) + "\n").c_str());
+            Logger::WriteMessage(("Dense matrix-matrix us: " + std::to_string(denseMs) + "\n").c_str());
+            Logger::WriteMessage(("Sparse matrix-matrix us: " + std::to_string(sparseMs) + "\n").c_str());
 
             // allow some slack: sparse should generally be faster for low sparsity, but do not fail CI if it's slower
-            Logger::WriteMessage((std::string("Dense ms: ") + std::to_string(denseMs) + ", Sparse ms: " + std::to_string(sparseMs) + "\n").c_str());
+            Logger::WriteMessage((std::string("Dense us: ") + std::to_string(denseMs) + ", Sparse us: " + std::to_string(sparseMs) + "\n").c_str());
             Assert::IsTrue(sparseMs * 1.5 < denseMs || sparseMs < denseMs * 3, L"Sparse matrix-matrix multiply unexpected performance (see logs)");
         }
 
@@ -273,8 +273,8 @@ namespace MatrixTests
             // validate results
             for (size_t i = 0; i < M; ++i) Assert::AreEqual((double)denseRight[i], (double)(*sparseRightPtr)[i], 1e-3, L"Right multiply mismatch");
 
-            Logger::WriteMessage(("Dense right multiply ms: " + std::to_string(denseRightDur.count()) + "\n").c_str());
-            Logger::WriteMessage(("Sparse right multiply ms: " + std::to_string(sparseRightDur.count()) + "\n").c_str());
+            Logger::WriteMessage(("Dense right multiply us: " + std::to_string(denseRightDur.count()) + "\n").c_str());
+            Logger::WriteMessage(("Sparse right multiply us: " + std::to_string(sparseRightDur.count()) + "\n").c_str());
             Assert::IsTrue(sparseRightDur.count() < denseRightDur.count(), L"Sparse right multiply should be faster than dense for 30% non-zero.");
 
             // left-multiply: x (M) * A (MxN) -> y (N)
@@ -308,8 +308,8 @@ namespace MatrixTests
 
             for (size_t j = 0; j < N; ++j) Assert::AreEqual((double)denseLeft[j], (double)(*sparseLeftPtr)[j], 1e-3, L"Left multiply mismatch");
 
-            Logger::WriteMessage(("Dense left multiply ms: " + std::to_string(denseLeftDur.count()) + "\n").c_str());
-            Logger::WriteMessage(("Sparse left multiply ms: " + std::to_string(sparseLeftDur.count()) + "\n").c_str());
+            Logger::WriteMessage(("Dense left multiply us: " + std::to_string(denseLeftDur.count()) + "\n").c_str());
+            Logger::WriteMessage(("Sparse left multiply us: " + std::to_string(sparseLeftDur.count()) + "\n").c_str());
             Assert::IsTrue(sparseLeftDur.count() < denseLeftDur.count(), L"Sparse left multiply should be faster than dense for 30% non-zero.");
         }
 
@@ -661,7 +661,7 @@ namespace MatrixTests
                 
                 // Log mat*mat results
                 Logger::WriteMessage((std::string("mat*mat sparsity ") + std::to_string(sparsity) + ": dense dense us =" + std::to_string(denseMatMatMs) + ", sparse*scalar us=" + std::to_string(sparseMatDenseMs) + ", sparse*sparse us=" + std::to_string(sparseMatMatMs) + "\n").c_str());
-                Logger::WriteMessage((std::string("\tspeedups (dense/sparse): scalar-mat=") + std::to_string((double)denseMatMatMs / (double)sparseMatDenseMs) + ", sparse-sparse=" + std::to_string((double)denseMatMatMs / (double)sparseMatMatMs) + "\n").c_str());
+                Logger::WriteMessage((std::string("\tspeedups (dense/sparse): sparse-dense=") + std::to_string((double)denseMatMatMs / (double)sparseMatDenseMs) + ", sparse-sparse=" + std::to_string((double)denseMatMatMs / (double)sparseMatMatMs) + "\n").c_str());
             }
         }
     };
