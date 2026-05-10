@@ -4,7 +4,7 @@ This is a C++ library project implementing matrix and vector primitives and unit
 
 Speedup summary: Benchmark is performed on Intel(R) Core(TM) i9-10900K CPU @ 3.70GHz, 3696 Mhz, 10 Core(s), 20 Logical Processor(s).
 
- `SpMV (sparse mat × vec)`: 1%: ×24.09; 5%: ×6.04; 10%: ×3.13; 25%: ×1.24.
+ - `SpMV (sparse mat × vec)`: 1%: ×24.09; 5%: ×6.04; 10%: ×3.13; 25%: ×1.24.
  - `SpMM (mat × mat)` (dense / sparse variants): 
 	- sparse matmul dense speedups — 1%: ×12.05; 5%: ×3.01; 10%: ×1.60; 25%: ×0.62 (dense faster). 
 	- sparse matmul sparse speedups — 1%: ×8.28; 5%: ×1.51; 10%: ×0.76; 25%: ×0.31 (dense faster).
