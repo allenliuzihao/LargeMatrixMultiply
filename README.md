@@ -1,6 +1,6 @@
 # LargeMatrixMultiply
 
-A small, focused C++ project implementing matrix and vector primitives and unit tests used by the DeepLearningGraphics suite.
+This is a C++ library project implementing matrix and vector primitives and unit tests with sparse matrix and vector optimizations techniques including sparse vector representation and sparse matrix representation using CSR (row-based) and CSC (column-based) Compression Sparse Formats.
 
 ## Project summary
 
@@ -16,7 +16,7 @@ Key source files:
 ## Requirements
 
 - Windows 10 or later
-- Visual Studio 2019/2022 with C++ workload (MSVC)
+- Visual Studio 2026 with C++ workload (MSVC)
 - C++20 (project configured for modern MSVC toolset)
 
 The project is configured as a Visual Studio solution (`LargeMatrixMultiply.slnx`) and uses the MSVC toolchain. Precompiled headers are used (see `pch.h` / `pch.cpp`).
@@ -94,18 +94,20 @@ Notes:
 Matrix-vector and matrix-matrix products are implemented to exploit the CSR/CSC and sparse-vector layouts efficiently:
 
 - Matrix × Vector (sparse matrix):
-	- CSR (row-major) uses `RightMultiply(const ScalarVector&)` / `RightMultiply(const SparseVector&)` semantics: for each row i iterate indices `j` in `[m_pointers[i], m_pointers[i+1])` and accumulate `m_values[j] * vec[m_indices[j]]` into `result[i]`.
+	- CSR (row-major) uses `RightMultiply(const ScalarVector&)` semantics: for each row i iterate indices `j` in `[m_pointers[i], m_pointers[i+1])` and accumulate `m_values[j] * vec[m_indices[j]]` into `result[i]`.
 	- CSC (column-major) uses `LeftMultiply(const ScalarVector&)` semantics: for each column j iterate indices `i` in `[m_pointers[j], m_pointers[j+1])` and accumulate `m_values[i] * vec[m_indices[i]]` into `result[j]` (or into destination rows when multiplying from the left).
 	- Complexity: O(nnz) where nnz is the number of stored non-zero values.
-
-- Matrix × Vector (sparse vector):
-	- The `SparseVector` stores `(m_indices, m_data)` with `m_indices` sorted. Element access is binary-search based, and dot products use a two-pointer merge when both operands are sparse, otherwise the sparse operand iterates its non-zero entries and samples the dense vector.
 
 - Matrix × Matrix:
 	- The code expects one operand to be in CSR (row-major) and the other in CSC (column-major) for the most efficient multiply paths. Concretely, `SparseMatrix::RightMultiply(const ScalarMatrix& other)` requires `this` to be row-major and `other` to be column-major — this lets the implementation iterate a row of `A` and a column of `B` without scanning full rows/columns.
 	- Sparse × Dense: for each row of the sparse matrix, iterate its non-zero entries and multiply-accumulate against the corresponding (dense) column entries of the other matrix (stored column-major for cache-friendly access). Complexity roughly O(nnz * K) for producing an M×K result.
 	- Sparse × Sparse: when both matrices are sparse and stored in the appropriate complementary formats, the implementation performs a two-pointer merge between the sorted index lists of a row (from CSR) and a column (from CSC) to find matching indices and accumulate products. This avoids hashing or random lookups and runs in time proportional to the sum of degrees of the involved row/column pairs.
 	- The code also implements `RightMultiply(const SparseMatrix&)` which uses the two-pointer technique to multiply matching non-zero index lists and store the summed result into the dense result buffer (a `ScalarMatrix`), as a simple, robust approach.
+
+- Sparse Vector dot-products:
+	- `dot(const SparseVector& a, const SparseVector& b)`: two‑pointer merge over the sorted `m_indices` arrays of both operands to find matching indices and accumulate products. Complexity O(nnz(a) + nnz(b)); minimal extra memory traffic.
+	- `dot(const SparseVector& a, const ScalarVector& b)`: iterate `a.m_indices` / `a.m_data`, sample `b` at each index and accumulate. Complexity O(nnz(a)); avoids scanning the full dense vector.
+	- Implementation notes: ensure `m_indices` are sorted to enable linear merges; avoid per-element binary searches in hot loops; prefer the two‑pointer merge when both operands are sparse.
 
 Notes and trade-offs:
 
@@ -114,6 +116,100 @@ Notes and trade-offs:
 - For very large, highly-sparse matrices, consider algorithms that produce sparse outputs directly (assembly into CSR/CSC) instead of materializing dense intermediate results.
 
 See `Matrix.h` and `Vector.h` for the exact method names and implementations used (`RightMultiply`, `LeftMultiply`, two-pointer merge, etc.).
+
+## Benchmarks and Sparsity Analysis
+
+The repository includes simple microbenchmarks for sparse and dense matrix/vector kernels. Below are representative results and a short interpretation of their implications for when sparse formats help. Benchmark is performed on Intel(R) Core(TM) i9-10900K CPU @ 3.70GHz, 3696 Mhz, 10 Core(s), 20 Logical Processor(s).
+
+Raw benchmark output (measured in microseconds):
+
+```
+mat*vec sparsity 0.010000: dense micro=2422.000000, sparse micro=85.000000, speedup=28.494118x
+mat*mat sparsity 0.010000: dense dense micro=257576.000000, sparse*scalar micro=23012.000000, sparse*sparse micro=31521.000000
+	.speedups (dense/sparse): scalar-mat=11.193117x, sparse-sparse=8.171568x
+mat*vec sparsity 0.050000: dense micro=2390.000000, sparse micro=406.000000, speedup=5.886700x
+mat*mat sparsity 0.050000: dense dense micro=256678.000000, sparse*scalar micro=84767.000000, sparse*sparse micro=170114.000000
+	.speedups (dense/sparse): scalar-mat=3.028042x, sparse-sparse=1.508859x
+mat*vec sparsity 0.100000: dense micro=2363.000000, sparse micro=787.000000, speedup=3.002541x
+mat*mat sparsity 0.100000: dense dense micro=255914.000000, sparse*scalar micro=161375.000000, sparse*sparse micro=337035.000000
+	.speedups (dense/sparse): scalar-mat=1.585834x, sparse-sparse=0.759310x
+mat*vec sparsity 0.250000: dense micro=2361.000000, sparse micro=1980.000000, speedup=1.192424x
+mat*mat sparsity 0.250000: dense dense micro=256298.000000, sparse*scalar micro=397345.000000, sparse*sparse micro=852453.000000
+	.speedups (dense/sparse): scalar-mat=0.645026x, sparse-sparse=0.300659x
+```
+
+Summary and interpretation:
+
+- **SpMV (matrix × vector):** At very low density (1% nonzeros) the sparse implementation is dramatically faster (×28 in this run). This is typical for SpMV when the dense kernel is memory‑bound: skipping zeros drastically reduces memory traffic. As density increases the advantage shrinks because indirect indexing, diminished cache reuse, and extra per‑nonzero overhead reduce performance; the provided data show sparse wins up to roughly 25% density and becomes marginal near 30%.
+
+- **SpMM (matrix × matrix):** Sparse matrix–matrix multiplication only outperforms the dense path at very low densities in these measurements (1% and in some cases 5%). For moderate densities (≥10%) the sparse implementations are slower: indexing indirection, irregular memory access, and lower arithmetic intensity make dense BLAS-style code faster. This matches common SpMM findings in literature.
+
+- **Why sparse can be slower at higher density:** Compressed formats add indirection and reduce contiguous memory access. When many entries are nonzero the per‑element overhead (index checks, pointer chasing, accumulation into scattered locations) outweighs benefits from skipping zeros.
+
+- **Practical recommendations:**
+  - Use sparse kernels for very low-density matrices (single-digit percent nonzeros).
+  - For moderate densities prefer dense BLAS (or fallback to dense after a density threshold).
+  - Consider block‑sparse, tiled, or hybrid formats (or convert to block dense) to recover cache locality when sparsity has structured nonzeros.
+  - Measure on your target hardware and problem sizes; hardware memory bandwidth, cache sizes, and BLAS implementation quality strongly affect crossover points.
+
+These notes are intended as guidance; the raw numbers above are from a microbenchmark run and should be interpreted relative to your machine and build configuration.
+
+### Sparse vector dot-product microbenchmarks
+
+Raw benchmark output (vector dot products, measured in milliseconds):
+
+```
+dot(SparseVector, SparseVector) vs dot(ScalarVector, ScalarVector)
+	Vector Size: 10000, Sparsity: 0.010000
+	Sparse ms: 1 ms, 	Dense ms: 113 ms
+	Speedup: 113.000000x
+dot(SparseVector, SparseVector) vs dot(ScalarVector, ScalarVector)
+	Vector Size: 10000, Sparsity: 0.050000
+	Sparse ms: 9 ms, 	Dense ms: 114 ms
+	Speedup: 12.666667x
+dot(SparseVector, SparseVector) vs dot(ScalarVector, ScalarVector)
+	Vector Size: 10000, Sparsity: 0.100000
+	Sparse ms: 19 ms, 	Dense ms: 114 ms
+	Speedup: 6.000000x
+dot(SparseVector, SparseVector) vs dot(ScalarVector, ScalarVector)
+	Vector Size: 10000, Sparsity: 0.250000
+	Sparse ms: 47 ms, 	Dense ms: 113 ms
+	Speedup: 2.404255x
+
+dot(SparseVector, ScalarVector) vs dot(ScalarVector, ScalarVector)
+	Vector Size: 10000, Sparsity: 0.010000
+	Sparse ms: 1 ms, 	Dense ms: 117 ms
+	Speedup: 117.000000x
+dot(SparseVector, ScalarVector) vs dot(ScalarVector, ScalarVector)
+	Vector Size: 10000, Sparsity: 0.050000
+	Sparse ms: 6 ms, 	Dense ms: 116 ms
+	Speedup: 19.333333x
+dot(SparseVector, ScalarVector) vs dot(ScalarVector, ScalarVector)
+	Vector Size: 10000, Sparsity: 0.100000
+	Sparse ms: 13 ms, 	Dense ms: 115 ms
+	Speedup: 8.846154x
+dot(SparseVector, ScalarVector) vs dot(ScalarVector, ScalarVector)
+	Vector Size: 10000, Sparsity: 0.250000
+	Sparse ms: 31 ms, 	Dense ms: 116 ms
+	Speedup: 3.741935x
+```
+
+Observations:
+
+- These dot-product microbenchmarks show very large speedups for sparse vectors at low densities (×100+ at 1% sparsity). Even at 25% nonzeros the sparse dot remains faster (2–4×) for the measured vector size (10k).
+- Dot-product operations are especially friendly to sparse formats because the sparse algorithm only iterates the nonzero entries and performs O(nnz) work rather than scanning the full dense vector — this greatly reduces memory traffic and leads to large wins when nnz is small relative to the vector length.
+
+Implementation notes (how this repo implements dot products):
+
+- `dot(const SparseVector& a, const SparseVector& b)`: two‑pointer merge over the sorted `m_indices` arrays of both operands. Complexity O(nnz(a) + nnz(b)) and minimal overhead per matching index.
+- `dot(const SparseVector& a, const ScalarVector& b)` (sparse × dense): iterate `a.m_indices` and `a.m_data`, sample `b` at each index, and accumulate. Complexity O(nnz(a)); memory accesses are reads from the dense vector at the sparse indices.
+- Avoid per-element binary search when possible; ensure `m_indices` are sorted and use the linear two-pointer merge for sparse×sparse to keep overhead low.
+
+Practical guidance:
+
+- For pure dot-products the sparsity crossover is usually much higher than for SpMV/SpMM — sparse vectors remain beneficial at substantially larger densities because the operation is a single-pass reduction with no scattered writes.
+- Use sparse dot for feature vectors, embeddings with many zeros, or other high-dimensional sparse signals; for small vectors or very high densities ( > ~50%) measure and consider using dense routines.
+- If you frequently need mixed operations (dense & sparse), ensure efficient SIMD/BLAS fallbacks and consider converting between representations at runtime based on density heuristics.
 
 ## Contributing
 
@@ -124,11 +220,3 @@ See `Matrix.h` and `Vector.h` for the exact method names and implementations use
 ## License
 
 This repository includes a `LICENSE.txt` file — see it for license details.
-
-## Contact
-
-Part of the DeepLearningGraphics project suite. For questions, open an issue or contact the maintainers listed in the repository metadata.
-
----
-
-This README was updated to add build and test instructions, file references, and practical notes for working on the project.
